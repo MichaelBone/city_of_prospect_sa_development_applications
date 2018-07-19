@@ -84,7 +84,6 @@ async function main() {
         let page = await pdf.getPage(1);
 
         let operators = await page.getOperatorList();
-        return;
 
         for (let index = 0; index < operators.fnArray.length; index++) {
             if (operators.fnArray[index] === pdfjs.OPS.paintImageXObject) {
@@ -105,8 +104,8 @@ async function main() {
 
                 // jimpImage.write("C:\\Temp\\Test2.jpg");
 
-                //let result = await tesseract.create({ langPath: "eng.traineddata" }).recognize(jimpImage.buffer, { lang: "eng" });
-                //console.log(result);
+                let result = await tesseract.create({ langPath: "eng.traineddata" }).recognize(jimpImage.bitmap, { lang: "eng" });
+                console.log(result);
 
                 console.log("Found.");
             }
