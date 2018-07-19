@@ -7,9 +7,10 @@
 let cheerio = require("cheerio");
 let request = require("request-promise-native");
 let sqlite3 = require("sqlite3").verbose();
-let pdf2json = require("pdf2json");
 let urlparser = require("url");
 let moment = require("moment");
+let tesseract = require("tesseract.js");
+let pdfjs = require("pdfjs-dist");
 
 const DevelopmentApplicationsUrl = "https://www.prospect.sa.gov.au/developmentregister";
 const CommentUrl = "mailto:admin@prospect.sa.gov.au";
@@ -78,7 +79,25 @@ async function main() {
         // Read the PDF containing an image of several development applications.
 
         console.log(`Retrieving document: ${pdfUrl}`);
-        // let pdf = await request(pdfUrl);
+        let pdf = await pdfjs.getDocument(pdfUrl);
+        let page = await pdf.getPage(1);
+
+        let operators = await page.getOperatorList();
+        for (let index = 0; index < operators.fnArray.length; index++) {
+            console.log(operators.fnArray[index]);
+            if (operators.fnArray[index] === pdfjs.OPS.paintImageXObject) {
+                let operator = operators.argsArray[index][0];
+                let image = page.objs.get(operator);
+                
+                let result = await tesseract.create({ langPath: "eng.traineddata" }).recognize(image, { lang: "eng" });
+                console.log(result);
+
+                console.log("Found.");
+            }
+        }
+
+        console.log("Just processing one PDF document at this stage.");
+        return;
     }
 
     // let pdfUrl = new urlparser.URL(relativePdfUrl, DevelopmentApplicationsUrl)
