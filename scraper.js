@@ -11,6 +11,7 @@ let urlparser = require("url");
 let moment = require("moment");
 let tesseract = require("tesseract.js");
 let pdfjs = require("pdfjs-dist");
+let jimp = require("jimp");
 
 const DevelopmentApplicationsUrl = "https://www.prospect.sa.gov.au/developmentregister";
 const CommentUrl = "mailto:admin@prospect.sa.gov.au";
@@ -83,14 +84,29 @@ async function main() {
         let page = await pdf.getPage(1);
 
         let operators = await page.getOperatorList();
+        return;
+
         for (let index = 0; index < operators.fnArray.length; index++) {
-            console.log(operators.fnArray[index]);
             if (operators.fnArray[index] === pdfjs.OPS.paintImageXObject) {
                 let operator = operators.argsArray[index][0];
                 let image = page.objs.get(operator);
                 
-                let result = await tesseract.create({ langPath: "eng.traineddata" }).recognize(image, { lang: "eng" });
-                console.log(result);
+                let jimpImage = new jimp(image.width, image.height);
+                for (let x = 0; x < image.width; x++) {
+                    for (let y = 0; y < image.height; y++) {
+                        let index = (y * image.width * 3) + (x * 3);
+                        let r = image.data[index];
+                        let g = image.data[index + 1];
+                        let b = image.data[index + 2];
+                        let value = (r * 256) + (g * 256 * 256) + (b * 256 * 256 * 256) + 255;
+                        jimpImage.setPixelColor(value, x, y);
+                    }
+                }
+
+                // jimpImage.write("C:\\Temp\\Test2.jpg");
+
+                //let result = await tesseract.create({ langPath: "eng.traineddata" }).recognize(jimpImage.buffer, { lang: "eng" });
+                //console.log(result);
 
                 console.log("Found.");
             }

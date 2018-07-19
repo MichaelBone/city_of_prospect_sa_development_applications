@@ -6,6 +6,7 @@
   "main": "scraper.js",
   "dependencies": {
     "cheerio": "^0.22.0",
+    "jimp": "^0.2.28",
     "moment": "^2.22.2",
     "pdfjs-dist": "^2.0.489",
     "request": "^2.87.0",
