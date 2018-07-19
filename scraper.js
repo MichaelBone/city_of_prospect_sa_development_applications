@@ -62,40 +62,42 @@ async function main() {
 
     let database = await initializeDatabase();
 
-    // Retrieve the page contain the link to the PDF.
+    // Retrieve the page contain the link to the PDFs.
 
-	console.log(`Retrieving page: ${DevelopmentApplicationsUrl}`);
+    console.log(`Retrieving page: ${DevelopmentApplicationsUrl}`);
     let body = await request(DevelopmentApplicationsUrl);
     let $ = cheerio.load(body);
 
-	let relativePdfUrl = null;
-	$("a[href$='.pdf']").each((index, element) => {
-		if ($(element).text() === "Development Applications Register")
-		    relativePdfUrl = element.attribs.href;
-	});
+    let pdfUrls = [];
+    for (let element of $("div.uContentList a[href$='.pdf']").get()) {
+        let pdfUrl = new urlparser.URL(element.attribs.href, DevelopmentApplicationsUrl).href;
+        if (pdfUrls.some(url => url === pdfUrl))
+            continue;  // ignore duplicates
+        pdfUrls.push(pdfUrl);
 
-	if (relativePdfUrl === null) {
-		console.log("Could not find a link to the PDF that contains the development applications.");
-		return;
-	}
+        // Read the PDF containing an image of several development applications.
 
-	let pdfUrl = new urlparser.URL(relativePdfUrl, DevelopmentApplicationsUrl)
-	console.log(`Retrieving document: ${pdfUrl.href}`);
-
-	// Parse the PDF into a collection of PDF rows.
-    
-    for (let row of rows) {
-        let receivedDate = moment(row[3].trim(), "D/MM/YYYY", true);  // allows the leading zero of the day to be omitted
-        await insertRow(database, {
-            applicationNumber: row[2].trim(),
-            address: row[1].trim(),
-            reason: row[5].trim(),
-            informationUrl: pdfUrl.href,
-            commentUrl: CommentUrl,
-            scrapeDate: moment().format("YYYY-MM-DD"),
-            receivedDate: receivedDate.isValid ? receivedDate.format("YYYY-MM-DD") : ""
-        });
+        console.log(`Retrieving document: ${pdfUrl}`);
+        // let pdf = await request(pdfUrl);
     }
+
+    // let pdfUrl = new urlparser.URL(relativePdfUrl, DevelopmentApplicationsUrl)
+    // console.log(`Retrieving document: ${pdfUrl.href}`);
+
+    // Parse the PDF into a collection of PDF rows.
+    
+    // for (let row of rows) {
+    //     let receivedDate = moment(row[3].trim(), "D/MM/YYYY", true);  // allows the leading zero of the day to be omitted
+    //     await insertRow(database, {
+    //         applicationNumber: row[2].trim(),
+    //         address: row[1].trim(),
+    //         reason: row[5].trim(),
+    //         informationUrl: pdfUrl.href,
+    //         commentUrl: CommentUrl,
+    //         scrapeDate: moment().format("YYYY-MM-DD"),
+    //         receivedDate: receivedDate.isValid ? receivedDate.format("YYYY-MM-DD") : ""
+    //     });
+    // }
 }
 
 // Determines whether the specified text represents an application number.  A strict format of
