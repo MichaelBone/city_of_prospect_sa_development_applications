@@ -97,7 +97,7 @@ async function main() {
                 // The image is examined in overlapping windows to reduce the memory usage (there
                 // is currently a hard limit of 512 MB).
 
-                const WindowHeight = 13 * 4;  // a row of text is approximately 13 pixels high
+                const WindowHeight = 13 * 2;  // a row of text is approximately 13 pixels high
                 const WindowOverlap = 13;
                 console.log(`Image width is ${image.width} and image height is ${image.height}.`);
                 for (let windowY = 0; windowY < image.height; windowY += WindowHeight) {
