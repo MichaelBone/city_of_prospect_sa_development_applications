@@ -89,32 +89,40 @@ async function main() {
 
         for (let index = 0; index < operators.fnArray.length; index++) {
             if (operators.fnArray[index] === pdfjs.OPS.paintImageXObject) {
+                // Obtain the image data.
+
                 let operator = operators.argsArray[index][0];
                 let image = page.objs.get(operator);
-                
+
+                // Convert the image data into a format that can be used by jimp.
+
                 let jimpImage = new jimp(image.width, image.height);
                 for (let x = 0; x < image.width; x++) {
                     for (let y = 0; y < image.height; y++) {
                         let index = (y * image.width * 3) + (x * 3);
-                        let r = image.data[index];
-                        let g = image.data[index + 1];
-                        let b = image.data[index + 2];
-                        let value = (r * 256) + (g * 256 * 256) + (b * 256 * 256 * 256) + 255;
-                        jimpImage.setPixelColor(value, x, y);
+                        let color = jimp.rgbaToInt(image.data[index], image.data[index + 1], image.data[index + 2], 255);
+                        jimpImage.setPixelColor(color, x, y);
                     }
                 }
 
-                jimpImage.scale(4.0);
-                let imageBuffer = await (new Promise((resolve, reject) => jimpImage.getBuffer(jimp.MIME_PNG, (error, buffer) => resolve(buffer))));
-                let result = await tesseract.create({ langPath: "eng.traineddata" }).recognize(imageBuffer, { lang: "eng" });
-                console.log(result);
+                // Upscale the image (this improves the OCR results).
 
-                console.log("Found.");
+                jimpImage.scale(4.0);
+
+                console.log("Examining image.");
+                let imageBuffer = await (new Promise((resolve, reject) => jimpImage.getBuffer(jimp.MIME_PNG, (error, buffer) => resolve(buffer))));
+                let result = await new Promise((resolve, reject) => {
+                    tesseract.recognize(imageBuffer).then(function(result) {
+                        resolve(result);
+                    })
+                });
+                
+                console.log(`text: ${result.text}`);
+                return;
             }
         }
 
         console.log("Just processing one PDF document at this stage.");
-        return;
     }
 
     // let pdfUrl = new urlparser.URL(relativePdfUrl, DevelopmentApplicationsUrl)
