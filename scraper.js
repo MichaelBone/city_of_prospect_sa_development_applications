@@ -134,17 +134,15 @@ async function main() {
                     });
             
                     console.log(`text: ${result.text}`);
-                    tesseract.terminate();
 
                     // Attempt to avoid reaching 512 MB memory usage.
 
-                    let memoryUsage = process.memoryUsage();
-                    console.log(`Before: rss: ${memoryUsage.rss}, heapTotal: ${memoryUsage.heapTotal}, heapUsed: ${memoryUsage.heapUsed}, external: ${memoryUsage.external}`);
                     if (global.gc)
                         global.gc();
-                    memoryUsage = process.memoryUsage();
-                    console.log(` After: rss: ${memoryUsage.rss}, heapTotal: ${memoryUsage.heapTotal}, heapUsed: ${memoryUsage.heapUsed}, external: ${memoryUsage.external}`);
+                    let memoryUsage = process.memoryUsage();
+                    console.log(`Memory Usage: rss: ${Math.round(memoryUsage.rss / (1024 * 1024))} MB, heapTotal: ${Math.round(memoryUsage.heapTotal / (1024 * 1024))} MB, heapUsed: ${Math.round(memoryUsage.heapUsed / (1024 * 1024))} MB, external: ${Math.round(memoryUsage.external / (1024 * 1024))} MB`);
                 }
+                tesseract.terminate();
                 return;
             }
         }
