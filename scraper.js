@@ -114,7 +114,7 @@ async function main() {
 
                     // Upscale the image (this improves the OCR results).
 
-                    console.log(`Cropping and upscaling the image for (0, ${windowY}, ${image.width}, ${WindowHeight + WindowOverlap}).`);
+                    console.log(`Cropping and upscaling the image for (0, ${windowY}, ${image.width}, ${WindowHeight + LineHeight}).`);
                     jimpImage.crop(0, windowY, image.width, Math.min(image.height - windowY, WindowHeight + LineHeight)).scale(4.0);
 
                     console.log("Examining the image.");
