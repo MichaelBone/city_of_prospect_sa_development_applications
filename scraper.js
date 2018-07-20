@@ -107,7 +107,7 @@ async function main() {
 
                 // Upscale the image (this improves the OCR results).
 
-                // jimpImage.scale(4.0);
+                jimpImage.scale(3.0);
 
                 console.log("Examining image.");
                 let imageBuffer = await (new Promise((resolve, reject) => jimpImage.getBuffer(jimp.MIME_PNG, (error, buffer) => resolve(buffer))));
