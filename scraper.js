@@ -136,11 +136,10 @@ async function main() {
                     console.log(`text: ${result.text}`);
                     tesseract.terminate();
 
-                    // try {
-                    //     global.gc();
-                    // } catch (ex) {
-                    //     console.log("Garbage collection not possible.");
-                    // }
+                    // Attempt to avoid reaching 512 MB memory usage.
+                    
+                    if (global.gc)
+                        global.gc();
                 }
                 return;
             }
