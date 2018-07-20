@@ -97,7 +97,7 @@ async function main() {
                 // The image is examined in overlapping windows to reduce the memory usage (there
                 // is currently a hard limit of 512 MB).
 
-                const WindowHeight = 100;
+                const WindowHeight = 75;
                 console.log(`Image width is ${image.width} and image height is ${image.height}.`);
                 for (let windowY = 0; windowY < image.height; windowY += WindowHeight) {
                     // Convert the image data into a format that can be used by jimp.
