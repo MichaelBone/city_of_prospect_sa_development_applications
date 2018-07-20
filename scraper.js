@@ -120,11 +120,11 @@ async function main() {
                     console.log("Examining the image.");
                     let imageBuffer = await (new Promise((resolve, reject) => jimpImage.getBuffer(jimp.MIME_PNG, (error, buffer) => resolve(buffer))));
 
-                    try {
-                        global.gc();
-                    } catch (ex) {
-                        console.log("Garbage collection not possible.");
-                    }
+                    // try {
+                    //     global.gc();
+                    // } catch (ex) {
+                    //     console.log("Garbage collection not possible.");
+                    // }
 
                     let result = await new Promise((resolve, reject) => {
                         console.log("Calling recognize.");
@@ -136,11 +136,11 @@ async function main() {
                     console.log(`text: ${result.text}`);
                     tesseract.terminate();
 
-                    try {
-                        global.gc();
-                    } catch (ex) {
-                        console.log("Garbage collection not possible.");
-                    }
+                    // try {
+                    //     global.gc();
+                    // } catch (ex) {
+                    //     console.log("Garbage collection not possible.");
+                    // }
                 }
                 return;
             }
