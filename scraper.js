@@ -97,7 +97,7 @@ async function main() {
                 // The image is examined in overlapping windows to reduce the memory usage (there
                 // is currently a hard limit of 512 MB).
 
-                const WindowHeight = 13 * 2;  // a row of text is approximately 13 pixels high
+                const WindowHeight = 13 * 6;  // a row of text is approximately 13 pixels high
                 const WindowOverlap = 13;
                 console.log(`Image width is ${image.width} and image height is ${image.height}.`);
                 for (let windowY = 0; windowY < image.height; windowY += WindowHeight) {
@@ -114,8 +114,8 @@ async function main() {
 
                     // Upscale the image (this improves the OCR results).
 
-                    console.log(`Cropping and upscaling the image for (0, ${windowY}, ${image.width}, ${WindowHeight * 1.5}).`);
-                    jimpImage.crop(0, windowY, image.width, Math.min(image.height - windowY, WindowHeight + WindowOverlap)).scale(5.0);
+                    console.log(`Cropping and upscaling the image for (0, ${windowY}, ${image.width}, ${WindowHeight + WindowOverlap}).`);
+                    jimpImage.crop(0, windowY, image.width, Math.min(image.height - windowY, WindowHeight + WindowOverlap)).scale(4.0);
 
                     console.log("Examining the image.");
                     let imageBuffer = await (new Promise((resolve, reject) => jimpImage.getBuffer(jimp.MIME_PNG, (error, buffer) => resolve(buffer))));
