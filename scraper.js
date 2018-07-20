@@ -77,10 +77,12 @@ async function main() {
             continue;  // ignore duplicates
         pdfUrls.push(pdfUrl);
 
-        // Read the PDF containing an image of several development applications.
+        // Read the PDF containing an image of several development applications.  Note that setting
+        // disableFontFace to true avoids a "document is not defined" exception that is otherwise
+        // thrown in fontLoaderInsertRule.
 
         console.log(`Retrieving document: ${pdfUrl}`);
-        let pdf = await pdfjs.getDocument(pdfUrl);
+        let pdf = await pdfjs.getDocument({ url: pdfUrl, disableFontFace: true });
         let page = await pdf.getPage(1);
 
         let operators = await page.getOperatorList();
@@ -102,9 +104,9 @@ async function main() {
                     }
                 }
 
-                // jimpImage.write("C:\\Temp\\Test2.jpg");
-
-                let result = await tesseract.create({ langPath: "eng.traineddata" }).recognize(jimpImage.bitmap, { lang: "eng" });
+                jimpImage.scale(4.0);
+                let imageBuffer = await (new Promise((resolve, reject) => jimpImage.getBuffer(jimp.MIME_PNG, (error, buffer) => resolve(buffer))));
+                let result = await tesseract.create({ langPath: "eng.traineddata" }).recognize(imageBuffer, { lang: "eng" });
                 console.log(result);
 
                 console.log("Found.");
