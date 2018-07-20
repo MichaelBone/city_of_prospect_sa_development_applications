@@ -97,7 +97,8 @@ async function main() {
                 // The image is examined in overlapping windows to reduce the memory usage (there
                 // is currently a hard limit of 512 MB).
 
-                const WindowHeight = 75;
+                const WindowHeight = 13 * 4;  // a row of text is approximately 13 pixels high
+                const WindowOverlap = 13;
                 console.log(`Image width is ${image.width} and image height is ${image.height}.`);
                 for (let windowY = 0; windowY < image.height; windowY += WindowHeight) {
                     // Convert the image data into a format that can be used by jimp.
@@ -114,7 +115,7 @@ async function main() {
                     // Upscale the image (this improves the OCR results).
 
                     console.log(`Cropping and upscaling the image for (0, ${windowY}, ${image.width}, ${WindowHeight * 1.5}).`);
-                    jimpImage.crop(0, windowY, image.width, WindowHeight * 1.5).scale(3.0);
+                    jimpImage.crop(0, windowY, image.width, WindowHeight + WindowOverlap).scale(3.0);
 
                     console.log("Examining the image.");
                     let imageBuffer = await (new Promise((resolve, reject) => jimpImage.getBuffer(jimp.MIME_PNG, (error, buffer) => resolve(buffer))));
@@ -133,8 +134,14 @@ async function main() {
                     });
             
                     console.log(`text: ${result.text}`);
+                    tesseract.terminate();
+
+                    try {
+                        global.gc();
+                    } catch (ex) {
+                        console.log("Garbage collection not possible.");
+                    }
                 }
-                tesseract.terminate();
                 return;
             }
         }
