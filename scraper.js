@@ -93,36 +93,33 @@ async function main() {
 
                 let operator = operators.argsArray[index][0];
                 let image = page.objs.get(operator);
-
-                // Convert the image data into a format that can be used by jimp.
-
-                let jimpImage = new jimp(image.width, image.height);
-                for (let x = 0; x < image.width; x++) {
-                    for (let y = 0; y < image.height; y++) {
-                        let index = (y * image.width * 3) + (x * 3);
-                        let color = jimp.rgbaToInt(image.data[index], image.data[index + 1], image.data[index + 2], 255);
-                        jimpImage.setPixelColor(color, x, y);
-                    }
-                }
-
+                
                 // The image is examined in overlapping windows to reduce the memory usage (there
                 // is currently a hard limit of 512 MB).
 
-                // Upscale the image (this improves the OCR results).
+                const WindowHeight = 100;
+                console.log(`Image width is ${image.width} and image height is ${image.height}.`);
+                for (let windowY = 0; windowY < image.height; windowY += WindowHeight) {
+                    // Convert the image data into a format that can be used by jimp.
 
-                const WindowHeight = 200;
-                for (let y = 0; y < jimpImage.bitmap.height; y += WindowHeight) {
-                    console.log(`Cropping the image to (0, ${y}, ${jimpImage.bitmap.width}, ${WindowHeight * 1.5}).`);
-                    jimpCroppedImage = jimpImage.crop(0, y, jimpImage.bitmap.width, WindowHeight * 1.5).scale(4.0);
+                    let jimpImage = new jimp(image.width, image.height);
+                    for (let x = 0; x < image.width; x++) {
+                        for (let y = 0; y < image.height; y++) {
+                            let index = (y * image.width * 3) + (x * 3);
+                            let color = jimp.rgbaToInt(image.data[index], image.data[index + 1], image.data[index + 2], 255);
+                            jimpImage.setPixelColor(color, x, y);
+                        }
+                    }
 
-                    console.log("Examining image.");
-                    let imageBuffer = await (new Promise((resolve, reject) => jimpCroppedImage.getBuffer(jimp.MIME_PNG, (error, buffer) => resolve(buffer))));
+                    // Upscale the image (this improves the OCR results).
 
-                    jimpCroppedImage = null;
-                    operator = null;
-                    image = null;
+                    console.log(`Cropping and upscaling the image for (0, ${windowY}, ${image.width}, ${WindowHeight * 1.5}).`);
+                    jimpImage.crop(0, windowY, image.width, WindowHeight * 1.5).scale(4.0);
+
+                    console.log("Examining the image.");
+                    let imageBuffer = await (new Promise((resolve, reject) => jimpImage.getBuffer(jimp.MIME_PNG, (error, buffer) => resolve(buffer))));
+
                     try {
-                        console.log("Attempting garbage collection");
                         global.gc();
                     } catch (ex) {
                         console.log("Garbage collection not possible.");
@@ -136,8 +133,8 @@ async function main() {
                     });
             
                     console.log(`text: ${result.text}`);
-                    tesseract.terminate();
                 }
+                tesseract.terminate();
                 return;
             }
         }
