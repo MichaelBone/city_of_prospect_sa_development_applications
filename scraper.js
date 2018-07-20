@@ -137,7 +137,8 @@ async function main() {
                     tesseract.terminate();
 
                     // Attempt to avoid reaching 512 MB memory usage.
-                    
+
+                    process.memoryUsage();
                     if (global.gc)
                         global.gc();
                 }
