@@ -105,36 +105,39 @@ async function main() {
                     }
                 }
 
+                // The image is examined in overlapping windows to reduce the memory usage (there
+                // is currently a hard limit of 512 MB).
+
                 // Upscale the image (this improves the OCR results).
 
-                console.log("Cropping the image.");
-                jimpImage = jimpImage.crop(0, 0, jimpImage.bitmap.width, jimpImage.bitmap.height / 8);
+                const WindowHeight = 200;
+                for (let y = 0; y < jimpImage.bitmap.height; y += WindowHeight) {
+                    console.log(`Cropping the image to (0, ${y}, ${jimpImage.bitmap.width}, ${WindowHeight * 1.5}).`);
+                    jimpCroppedImage = jimpImage.crop(0, y, jimpImage.bitmap.width, WindowHeight * 1.5).scale(4.0);
 
-                jimpImage.scale(4.0);
+                    console.log("Examining image.");
+                    let imageBuffer = await (new Promise((resolve, reject) => jimpCroppedImage.getBuffer(jimp.MIME_PNG, (error, buffer) => resolve(buffer))));
 
-                console.log("Examining image.");
-                let imageBuffer = await (new Promise((resolve, reject) => jimpImage.getBuffer(jimp.MIME_PNG, (error, buffer) => resolve(buffer))));
+                    jimpCroppedImage = null;
+                    operator = null;
+                    image = null;
+                    try {
+                        console.log("Attempting garbage collection");
+                        global.gc();
+                    } catch (ex) {
+                        console.log("Garbage collection not possible.");
+                    }
 
-                jimpImage = null;
-                operator = null;
-                image = null;
-                try {
-                    console.log("Attempting garbage collection");
-                    global.gc();
-                } catch (ex) {
-                    console.log("Garbage collection not possible.");
+                    let result = await new Promise((resolve, reject) => {
+                        console.log("Calling recognize.");
+                        tesseract.recognize(imageBuffer).then(function(result) {
+                            resolve(result);
+                        })
+                    });
+            
+                    console.log(`text: ${result.text}`);
+                    tesseract.terminate();
                 }
-
-                let result = await new Promise((resolve, reject) => {
-                    console.log("Calling recognize.");
-                    tesseract.recognize(imageBuffer).then(function(result) {
-                        console.log(`text: ${result.text}`);
-                        resolve(result);
-                    })
-                });
-        
-                console.log(`text: ${result.text}`);
-                // tesseract.terminate();
                 return;
             }
         }
