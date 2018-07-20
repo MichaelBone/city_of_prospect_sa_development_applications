@@ -128,6 +128,7 @@ async function main() {
                 let result = await new Promise((resolve, reject) => {
                     console.log("Calling recognize.");
                     tesseract.recognize(imageBuffer).then(function(result) {
+                        console.log(`text: ${result.text}`);
                         resolve(result);
                     })
                 });
