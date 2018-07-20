@@ -107,7 +107,10 @@ async function main() {
 
                 // Upscale the image (this improves the OCR results).
 
-                jimpImage.scale(3.0);
+                jimpImage.scale(4.0);
+
+                console.log("Cropping the image.");
+                jimpImage = jimpImage.crop(0, 0, jimpImage.width, jimpImage.height / 2);
 
                 console.log("Examining image.");
                 let imageBuffer = await (new Promise((resolve, reject) => jimpImage.getBuffer(jimp.MIME_PNG, (error, buffer) => resolve(buffer))));
@@ -116,6 +119,7 @@ async function main() {
                 operator = null;
                 image = null;
                 try {
+                    console.log("Attempting garbage collection");
                     global.gc();
                 } catch (ex) {
                     console.log("Garbage collection not possible.");
