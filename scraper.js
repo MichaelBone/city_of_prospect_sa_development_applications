@@ -138,9 +138,10 @@ async function main() {
 
                     // Attempt to avoid reaching 512 MB memory usage.
 
-                    process.memoryUsage();
+                    console.log(`Before: ${process.memoryUsage()}`);
                     if (global.gc)
                         global.gc();
+                    console.log(`After: ${process.memoryUsage()}`);
                 }
                 return;
             }
