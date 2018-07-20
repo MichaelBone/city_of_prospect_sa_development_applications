@@ -138,10 +138,12 @@ async function main() {
 
                     // Attempt to avoid reaching 512 MB memory usage.
 
-                    console.log(`Before: ${process.memoryUsage()}`);
+                    let memoryUsage = process.memoryUsage();
+                    console.log(`Before: rss: ${memoryUsage.rss}, heapTotal: ${memoryUsage.heapTotal}, heapUsed: ${memoryUsage.heapUsed}, external: ${memoryUsage.external}`);
                     if (global.gc)
                         global.gc();
-                    console.log(`After: ${process.memoryUsage()}`);
+                    memoryUsage = process.memoryUsage();
+                    console.log(` After: rss: ${memoryUsage.rss}, heapTotal: ${memoryUsage.heapTotal}, heapUsed: ${memoryUsage.heapUsed}, external: ${memoryUsage.external}`);
                 }
                 return;
             }
