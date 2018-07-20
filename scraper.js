@@ -119,6 +119,7 @@ async function main() {
                 });
         
                 console.log(`text: ${result.text}`);
+                tesseract.terminate();
                 return;
             }
         }
