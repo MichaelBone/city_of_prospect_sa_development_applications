@@ -13,7 +13,7 @@ let tesseract = require("tesseract.js");
 let pdfjs = require("pdfjs-dist");
 let jimp = require("jimp");
 
-const DevelopmentApplicationsUrl = "https://www.prospect.sa.gov.au/developmentregister";
+const DevelopmentApplicationsUrl = "http://www.prospect.sa.gov.au/developmentregister";
 const CommentUrl = "mailto:admin@prospect.sa.gov.au";
 
 // Sets up an sqlite database.
