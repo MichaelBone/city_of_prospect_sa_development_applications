@@ -108,7 +108,7 @@ async function main() {
                 // Upscale the image (this improves the OCR results).
 
                 console.log("Cropping the image.");
-                jimpImage = jimpImage.crop(0, 0, jimpImage.bitmap.width, jimpImage.bitmap.height / 4);
+                jimpImage = jimpImage.crop(0, 0, jimpImage.bitmap.width, jimpImage.bitmap.height / 8);
 
                 jimpImage.scale(4.0);
 
