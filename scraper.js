@@ -111,20 +111,12 @@ async function main() {
 
                 console.log("Examining image.");
                 let imageBuffer = await (new Promise((resolve, reject) => jimpImage.getBuffer(jimp.MIME_PNG, (error, buffer) => resolve(buffer))));
-                try {
-                    let result = await new Promise((resolve, reject) => {
-                        try {
-                            console.log("Calling recognize.");
-                            tesseract.recognize(imageBuffer).then(function(result) {
-                                resolve(result);
-                            })
-                        } catch (ex) {
-                            console.error(ex);
-                        }
-                    });
-                } catch (ex) {
-                    console.error(ex);
-                }
+                let result = await new Promise((resolve, reject) => {
+                    console.log("Calling recognize.");
+                    tesseract.recognize(imageBuffer).then(function(result) {
+                        resolve(result);
+                    })
+                });
         
                 console.log(`text: ${result.text}`);
                 return;
