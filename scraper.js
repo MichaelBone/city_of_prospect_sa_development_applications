@@ -87,7 +87,7 @@ async function parseImage(image) {
         // Grap a section of the image (this minimises memory usage and upscale it (this improves
         // the OCR results).
 
-        jimpImage.crop(0, sectionY, image.width, sectionHeight).scale(7.0);
+        jimpImage.crop(0, sectionY, image.width, sectionHeight).scale(6.0, jimp.RESIZE_BEZIER);
         let imageBuffer = await (new Promise((resolve, reject) => jimpImage.getBuffer(jimp.MIME_PNG, (error, buffer) => resolve(buffer))));
 
         // Perform OCR on the image.
@@ -95,7 +95,7 @@ async function parseImage(image) {
         memoryUsage = process.memoryUsage();
         console.log(`     Memory Usage After Images: rss: ${Math.round(memoryUsage.rss / (1024 * 1024))} MB, heapTotal: ${Math.round(memoryUsage.heapTotal / (1024 * 1024))} MB, heapUsed: ${Math.round(memoryUsage.heapUsed / (1024 * 1024))} MB, external: ${Math.round(memoryUsage.external / (1024 * 1024))} MB`);
         let result = await new Promise((resolve, reject) => {
-            tesseract.recognize(imageBuffer).then(function(result) {
+            tesseract.recognize(imageBuffer, { user_words_file: "streetnames.txt" }).then(function(result) {
                 resolve(result);
             })
         });
@@ -110,9 +110,16 @@ async function parseImage(image) {
 
         // Analyse the resulting text.
 
-        if (result.blocks && result.blocks.length)
-            for (let word of result.blocks[0].paragraphs[0].lines[0].words)
+        if (result.blocks && result.blocks.length) {
+            for (let word of result.blocks[0].paragraphs[0].lines[0].words) {
                 console.log(`    ${word.text} (confidence: ${Math.round(word.confidence)}, choices: ${word.choices.length}, x0: ${word.bbox.x0})`);
+                if (word.choices.length >= 2) {
+                    for (let choice of word.choices) {
+                        console.log(`        Choice: ${choice.text} (confidence: ${Math.round(choice.confidence)})`);
+                    }
+                }
+            }
+        }
     }
 }
 
