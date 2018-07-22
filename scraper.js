@@ -63,16 +63,18 @@ async function parseImage(image) {
     // The image is examined in overlapping windows to reduce the memory usage (there is currently
     // a hard limit of 512 MB).
 
-    const LineHeight = 13;  // the tallest text is approximately 13 pixels high
-    const SectionHeight = LineHeight * 4;
+    const LineHeight = 15;  // the tallest text is approximately 15 pixels high
+    const SectionHeight = LineHeight * 2;
 
-    console.log(`Image is ${image.width} by ${image.height} pixels.`);
-    for (let sectionY = 0; sectionY < image.height; sectionY += SectionHeight) {
-        let sectionHeight = Math.min(image.height - sectionY, SectionHeight + LineHeight);
-        console.log(`Examining y = [${sectionY} .. ${sectionY + sectionHeight - 1}].`)
+    console.log(`Image x = [0..${image.width}], y = [0..${image.height}].`);
+    for (let sectionY = 0; sectionY < image.height; sectionY += LineHeight / 3) {
+        let sectionHeight = Math.min(image.height - sectionY, SectionHeight);
+        console.log(`Examining y = [${sectionY}..${sectionY + sectionHeight - 1}] of ${image.height}.`)
 
         // Convert the image data into a format that can be used by jimp.
 
+        let memoryUsage = process.memoryUsage();
+        console.log(`    Memory Usage Before Images: rss: ${Math.round(memoryUsage.rss / (1024 * 1024))} MB, heapTotal: ${Math.round(memoryUsage.heapTotal / (1024 * 1024))} MB, heapUsed: ${Math.round(memoryUsage.heapUsed / (1024 * 1024))} MB, external: ${Math.round(memoryUsage.external / (1024 * 1024))} MB`);
         let jimpImage = new jimp(image.width, image.height);
         for (let x = 0; x < image.width; x++) {
             for (let y = 0; y < image.height; y++) {
@@ -85,11 +87,13 @@ async function parseImage(image) {
         // Grap a section of the image (this minimises memory usage and upscale it (this improves
         // the OCR results).
 
-        jimpImage.crop(0, sectionY, image.width, sectionHeight).scale(4.0);
+        jimpImage.crop(0, sectionY, image.width, sectionHeight).scale(8.0);
+        let imageBuffer = await (new Promise((resolve, reject) => jimpImage.getBuffer(jimp.MIME_PNG, (error, buffer) => resolve(buffer))));
 
         // Perform OCR on the image.
 
-        let imageBuffer = await (new Promise((resolve, reject) => jimpImage.getBuffer(jimp.MIME_PNG, (error, buffer) => resolve(buffer))));
+        memoryUsage = process.memoryUsage();
+        console.log(`     Memory Usage After Images: rss: ${Math.round(memoryUsage.rss / (1024 * 1024))} MB, heapTotal: ${Math.round(memoryUsage.heapTotal / (1024 * 1024))} MB, heapUsed: ${Math.round(memoryUsage.heapUsed / (1024 * 1024))} MB, external: ${Math.round(memoryUsage.external / (1024 * 1024))} MB`);
         let result = await new Promise((resolve, reject) => {
             tesseract.recognize(imageBuffer).then(function(result) {
                 resolve(result);
@@ -98,15 +102,17 @@ async function parseImage(image) {
 
         // Attempt to avoid reaching 512 MB memory usage.
 
+        memoryUsage = process.memoryUsage();
+        console.log(`Memory Usage: rss: ${Math.round(memoryUsage.rss / (1024 * 1024))} MB, heapTotal: ${Math.round(memoryUsage.heapTotal / (1024 * 1024))} MB, heapUsed: ${Math.round(memoryUsage.heapUsed / (1024 * 1024))} MB, external: ${Math.round(memoryUsage.external / (1024 * 1024))} MB`);
         tesseract.terminate();
         if (global.gc)
             global.gc();
-        let memoryUsage = process.memoryUsage();
-        console.log(`Memory Usage: rss: ${Math.round(memoryUsage.rss / (1024 * 1024))} MB, heapTotal: ${Math.round(memoryUsage.heapTotal / (1024 * 1024))} MB, heapUsed: ${Math.round(memoryUsage.heapUsed / (1024 * 1024))} MB, external: ${Math.round(memoryUsage.external / (1024 * 1024))} MB`);
 
         // Analyse the resulting text.
 
-        console.log(result.text);
+        if (result.blocks && result.blocks.length)
+            for (let word of result.blocks[0].paragraphs[0].lines[0].words)
+                console.log(`    ${word.text} (confidence: ${Math.round(word.confidence)}, choices: ${word.choices.length}, x0: ${word.bbox.x0})`);
     }
 }
 
@@ -126,7 +132,6 @@ async function parsePdf(pdf) {
                 let operator = operators.argsArray[index][0];
                 let image = page.objs.get(operator);
                 await parseImage(image);
-                return;  // only examine one PDF file at this stage.
             }
         }
     }
@@ -159,6 +164,8 @@ async function main() {
         console.log(`Retrieving document: ${pdfUrl}`);
         let pdf = await pdfjs.getDocument({ url: pdfUrl, disableFontFace: true });
         await parsePdf(pdf);
+        console.log("Only examining the first PDF.");
+        return;  // only examine one PDF file at this stage.
     }
 
     // let pdfUrl = new urlparser.URL(relativePdfUrl, DevelopmentApplicationsUrl)
