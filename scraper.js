@@ -87,7 +87,7 @@ async function parseImage(image) {
         // Grap a section of the image (this minimises memory usage and upscale it (this improves
         // the OCR results).
 
-        jimpImage.crop(0, sectionY, image.width, sectionHeight).scale(6.0);
+        jimpImage.crop(0, sectionY, image.width, sectionHeight).scale(7.0);
         let imageBuffer = await (new Promise((resolve, reject) => jimpImage.getBuffer(jimp.MIME_PNG, (error, buffer) => resolve(buffer))));
 
         // Perform OCR on the image.
