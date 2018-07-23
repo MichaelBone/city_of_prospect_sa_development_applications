@@ -319,7 +319,7 @@ async function main() {
     let twoPdfUrls = [];
     twoPdfUrls.push(pdfUrls[0]);
     if (pdfUrls.length >= 2)
-        twoPdfUrls.push(pdfUrls[getRandom(1, pdfUrls.length)]);
+        twoPdfUrls.push(pdfUrls[Math.random(1, pdfUrls.length)]);
 
     for (let pdfUrl of twoPdfUrls) {
         // Read the PDF containing an image of several development applications.  Note that setting
