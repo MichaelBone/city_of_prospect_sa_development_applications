@@ -277,7 +277,13 @@ async function parsePdf(pdfUrl, pdf) {
     }
 }
 
-// Parses the development applications.
+// Gets a random integer in the specified range: [minimum, maximum).
+
+function getRandom(minimum, maximum) {
+    return Math.floor(Math.random() * (Math.floor(maximum) - Math.ceil(minimum))) + Math.ceil(minimum);
+}
+
+// Parses the development applications from the PDFs on the page.
 
 async function main() {
     // Ensure that the database exists.
@@ -291,12 +297,31 @@ async function main() {
     let $ = cheerio.load(body);
 
     let pdfUrls = [];
-    for (let element of $("div.uContentList a[href$='.pdf']").get()) {
-        let pdfUrl = new urlparser.URL(element.attribs.href, DevelopmentApplicationsUrl).href;
+    let linkElements = $("div.uContentList a[href$='.pdf']").get();
+
+    if (linkElements.length === 0) {
+        console.log("No PDFs were found.");
+        return;
+    }
+
+    // Remove duplicate URLs.
+
+    for (let linkElement of linkElements) {
+        let pdfUrl = new urlparser.URL(linkElement.attribs.href, DevelopmentApplicationsUrl).href;
         if (pdfUrls.some(url => url === pdfUrl))
             continue;  // ignore duplicates
         pdfUrls.push(pdfUrl);
+    }
 
+    // Parse the most recent PDF and one other randomly selected PDF (do not parse all PDFs
+    // because this would take too long).
+
+    let twoPdfUrls = [];
+    twoPdfUrls.push(pdfUrls[0]);
+    if (pdfUrls.length >= 2)
+        twoPdfUrls.push(pdfUrls[getRandom(1, pdfUrls.length)]);
+
+    for (let pdfUrl of twoPdfUrls) {
         // Read the PDF containing an image of several development applications.  Note that setting
         // disableFontFace to true avoids a "document is not defined" exception that is otherwise
         // thrown in fontLoaderInsertRule.
@@ -304,15 +329,8 @@ async function main() {
         console.log(`Retrieving document: ${pdfUrl}`);
         let pdf = await pdfjs.getDocument({ url: pdfUrl, disableFontFace: true });
         await parsePdf(pdfUrl, pdf);
-        console.log("Only examining the first PDF.");
-        return;  // only examine one PDF file at this stage.
     }
 
-    // let pdfUrl = new urlparser.URL(relativePdfUrl, DevelopmentApplicationsUrl)
-    // console.log(`Retrieving document: ${pdfUrl.href}`);
-
-    // Parse the PDF into a collection of PDF rows.
-    
     // for (let row of rows) {
     //     let receivedDate = moment(row[3].trim(), "D/MM/YYYY", true);  // allows the leading zero of the day to be omitted
     //     await insertRow(database, {
