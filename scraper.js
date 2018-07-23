@@ -17,7 +17,7 @@ let didyoumean2 = require("didyoumean2");
 const DevelopmentApplicationsUrl = "http://www.prospect.sa.gov.au/developmentregister";
 const CommentUrl = "mailto:admin@prospect.sa.gov.au";
 
-// Heights used when recognising text in an image.
+// Heights and widths used when recognising text in an image.
 
 const LineHeight = 15;  // the tallest line of text is approximately 15 pixels high
 const SectionHeight = LineHeight * 2;  // the text will be examined in sections this height (in pixels)
@@ -223,7 +223,7 @@ async function parseImage(pdfUrl, image) {
             previousAverageColor = averageColor;
         }
 
-        // Grap a section of the image (this minimises memory usage and upscale it (this improves
+        // Grab a section of the image (this minimises memory usage) and upscale it (this improves
         // the OCR results).
 
         jimpImage.crop(0, sectionY, image.width, sectionHeight).scale(6.0, jimp.RESIZE_BEZIER);
