@@ -269,12 +269,12 @@ async function parseImage(pdfUrl, image) {
 
     let lines = [];
 
-    console.log(`Image x = [0..${image.width}], y = [0..${image.height}].`);
+    console.log(`Image x in [0..${image.width}], y in [0..${image.height}].`);
     // for (let sectionY = 0; sectionY < image.height; sectionY += SectionStep) {
 console.log("Temporary speed up.");
     for (let sectionY = 0; sectionY < image.height / 3; sectionY += SectionStep) {
         let sectionHeight = Math.min(image.height - sectionY, SectionHeight);
-        console.log(`Examining y = [${sectionY}..${sectionY + sectionHeight - 1}] of ${image.height}.`)
+        console.log(`Examining y in [${sectionY}..${sectionY + sectionHeight - 1}] of [0..${image.height - 1}.`)
 
         // Convert the image data into a format that can be used by jimp.
 
