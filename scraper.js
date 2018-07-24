@@ -157,14 +157,19 @@ function chooseDevelopmentApplications(candidateDevelopmentApplications) {
     // Where there are multiple candidate development applications (with the same application
     // number) choose the development application with the highest total confidence.
 
-    let developmentApplications = {};
+    let confidentDevelopmentApplications = {};
 
     for (let candidateDevelopmentApplication of candidateDevelopmentApplications) {
-        let developmentApplication = developmentApplications[candidateDevelopmentApplication.applicationNumber];
+        let developmentApplication = confidentDevelopmentApplication[candidateDevelopmentApplication.applicationNumber];
         if (developmentApplication === undefined || (developmentApplication !== undefined && developmentApplication.confidence < candidateDevelopmentApplication.confidence))
-            developmentApplications[candidateDevelopmentApplication.applicationNumber] = candidateDevelopmentApplication;
+        confidentDevelopmentApplication[candidateDevelopmentApplication.applicationNumber] = candidateDevelopmentApplication;
     }
 
+    // Convert the high confidence development applications to an array.
+
+    let developmentApplications = [];
+    for (let applicationNumber in confidentDevelopmentApplications)
+        developmentApplications.push(confidentDevelopmentApplications[applicationNumber]);
     return developmentApplications;
 }
 
