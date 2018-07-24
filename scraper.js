@@ -164,9 +164,9 @@ function chooseDevelopmentApplications(candidateDevelopmentApplications) {
         console.log(developmentApplications[applicationNumber]);
 }
 
-// Parses the lines of words.  Each word in a line consists of a bounding box, the text that exists
-// in that bounding box and the confidence information determined by tesseract.js.  This includes
-// partitioning the text into columns (for example, the description and address columns).
+// Parses the lines of words.  Each word in a line consists of a bounding box, the text that
+// exists in that bounding box and the confidence information determined by tesseract.js.  This
+// includes partitioning the text into columns (for example, the description and address columns).
 
 function parseLines(pdfUrl, lines) {
     // Exclude lines that have low confidence or do not start with the expected text.
@@ -204,20 +204,27 @@ console.log("----------");
                 // at the current X co-ordinate; the more times the more likely it is that this
                 // is actually the start of a column).
 
-                let columnX = word.bounds.x;
-                let closestColumn = columns.find(column => Math.abs(columnX - column.x) < ColumnAlignment);
+                let closestColumn = columns.find(column => Math.abs(word.bounds.x - column.x) < ColumnAlignment);
                 if (closestColumn !== undefined)
                     closestColumn.count++;
                 else
-                    columns.push({ x: columnX, count: 1 });
+                    columns.push({ x: word.bounds.x, count: 1 });
             }
             previousWord = word;
         }
     }
 
-    console.log(columns);
-console.log("Stopping early.");
-return;
+    // Ignore columns that have low counts.
+
+    let totalCount = 0;
+    for (let column of columns)
+        totalCount += column.count;
+    let averageCount = totalCount / Math.max(1, columns.length);
+    columns = columns.filter(column => column.count > averageCount / 2);  // low counts indicate low likelihood of the start of a column (arbitrarily use the average count divided by two as a threshold)
+    columns.sort((column1, column2) => (column1.x > column2.x) ? 1 : ((column1.x < column2.x) ? -1 : 0));
+
+    // Assume that there are five columns: date, application number, description, applicant and
+    // address.
 
     let candidateDevelopmentApplications = [];
     for (let filteredLine of filteredLines) {
@@ -234,9 +241,11 @@ return;
             let word = filteredLine[index];
             confidence += word.confidence;
 
-            // Determine if there is a sizable gap between this word and the last.
+            // Determine if this word lines up with the start of a column, or if there is a sizable
+            // gap between this word and the last.
 
-            if (previousWord !== null && word.bounds.x - (previousWord.bounds.x + previousWord.bounds.width) >= ColumnGap) {
+            let column = columns.find(column => Math.abs(column.x - word.bounds.x) < ColumnAlignment);
+            if (previousWord !== null && (word.bounds.x - (previousWord.bounds.x + previousWord.bounds.width) >= ColumnGap || column !== undefined)) {
                 if (isDescription) {
                     isDescription = false;
                     isApplicant = true;
