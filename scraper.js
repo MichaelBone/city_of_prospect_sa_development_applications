@@ -478,7 +478,7 @@ async function main() {
     if (pdfUrls.length === 1)
         twoPdfUrls = [ pdfUrls[0] ];
     else if (pdfUrls.length >= 2) {
-        if (getRandom(0, 2) === 0)
+        if (moment().second() % 2 === 0)
             twoPdfUrls = [ pdfUrls[0], pdfUrls[getRandom(1, pdfUrls.length)] ];
         else
             twoPdfUrls = [ pdfUrls[getRandom(1, pdfUrls.length)], pdfUrls[0] ];
