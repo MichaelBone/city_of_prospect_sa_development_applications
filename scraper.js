@@ -403,7 +403,7 @@ async function parseImage(pdfUrl, image) {
 
 // Parses a single PDF file.
 
-async function parsePdf(pdfUrl, pdf) {
+async function parsePdf(database, pdfUrl, pdf) {
     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
         console.log(`Examining page ${pageNumber} of ${pdf.numPages} in the PDF.`);
 
@@ -484,7 +484,7 @@ async function main() {
 
         console.log(`Retrieving document: ${pdfUrl}`);
         let pdf = await pdfjs.getDocument({ url: pdfUrl, disableFontFace: true });
-        await parsePdf(pdfUrl, pdf);  // this inserts development applications into the database
+        await parsePdf(database, pdfUrl, pdf);  // this inserts development applications into the database
     }
 }
 
