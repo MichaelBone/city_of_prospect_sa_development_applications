@@ -195,32 +195,39 @@ async function parseImage(pdfUrl, image) {
         // Attempt to remove any horizontal black lines (as these interfere with recognition of
         // characters with descenders such as "g", "p", "q" and "y").
 
-        let previousAverageColor = null;
+        let previousColors = null;
         for (let y = 0; y < image.height; y++) {
             // Count the number of dark pixels across the current horizontal line.
 
             let blackCount = 0;
-            let averageColor = { r: 0, g: 0, b: 0, a: 0 };
+            let colors = {};
             for (let x = 0; x < image.width; x++) {
-                let color = jimp.intToRGBA(jimpImage.getPixelColor(x, y));
+                let value = jimpImage.getPixelColor(x, y);
+                let color = jimp.intToRGBA(value);
                 if (color.r < 64 && color.g < 64 && color.b < 64 && color.a >= 196)
                     blackCount++;
-                averageColor.r += color.r;
-                averageColor.g += color.g;
-                averageColor.b += color.b;
-                averageColor.a += color.a;
+                colors[value] = (colors[value] || 0) + 1;
             }
 
             // If there are a lot of dark pixels then it is very likely a black line.  Set all
-            // those pixels to the average colour of the immediately previous line.
+            // those pixels to the most common colour on the immediately previous line.
 
-            if (blackCount >= image.width - 2 * ColumnGap && previousAverageColor !== null) {
-                let previousColor = jimp.rgbaToInt(previousAverageColor.r / image.width, previousAverageColor.g / image.width, previousAverageColor.b / image.width, previousAverageColor.a / image.width);
+            if (blackCount >= image.width - 2 * ColumnGap && previousColors !== null) {
+                // Find the most common colour on the previous line.
+
+                let previousColor = null;
+                for (let color in previousColors)
+                    if (previousColor === null || previousColors[color] > previousColors[previousColor])
+                        previousColor = color;
+
+                // Set the entire line to the most common colour.
+
+                previousColor = Number(previousColor);
                 for (let x = 0; x < image.width; x++)
                     jimpImage.setPixelColor(previousColor, x, y);
             }
 
-            previousAverageColor = averageColor;
+            previousColors = colors;
         }
 
         // Grab a section of the image (this minimises memory usage) and upscale it (this improves
@@ -319,7 +326,7 @@ async function main() {
     let twoPdfUrls = [];
     twoPdfUrls.push(pdfUrls[0]);
     if (pdfUrls.length >= 2)
-        twoPdfUrls.push(pdfUrls[Math.random(1, pdfUrls.length)]);
+        twoPdfUrls.push(pdfUrls[getRandom(1, pdfUrls.length)]);
 
     for (let pdfUrl of twoPdfUrls) {
         // Read the PDF containing an image of several development applications.  Note that setting
