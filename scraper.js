@@ -186,7 +186,11 @@ function parseLines(pdfUrl, lines) {
         filteredLines.push(line);
     }
 
-    // Determine where the description, applicant and address are located on each line.  There is
+console.log("Testing; filteredLines:");
+console.log(filteredLines);
+console.log("----------");
+
+    // Determine where the description, applicant and address are located on each line.  This is
     // determined by looking for the sizable gaps between columns.
 
     let candidateDevelopmentApplications = [];
@@ -243,14 +247,18 @@ function parseLines(pdfUrl, lines) {
             confidence: confidence });
     }
 
+console.log("Candidate development applications:");
+console.log(candidateDevelopmentApplications);
+console.log("----------");
+
     return chooseDevelopmentApplications(candidateDevelopmentApplications);
 }
 
 // Determines whether the specified text represents an application number.  A strict format of
-// "nnn/nnn/nnnn" is assumed.  For example, "030/279/2018".
+// "nnn/nnn/nnnn", "nnn/nn/nnnn" or "nnn/n/nnnn" is assumed.  For example, "030/279/2018".
 
 function isApplicationNumber(text) {
-    return /^[0-9][0-9][0-9]\/[0-9][0-9][0-9]\/[0-9][0-9][0-9][0-9]$/.test(text)
+    return /^[0-9]{3}\/[0-9]{1,3}\/[0-9]{4}$/.test(text)
 }
 
 // Parses an image (from a PDF file).
@@ -264,7 +272,7 @@ async function parseImage(pdfUrl, image) {
     console.log(`Image x = [0..${image.width}], y = [0..${image.height}].`);
     // for (let sectionY = 0; sectionY < image.height; sectionY += SectionStep) {
 console.log("Temporary speed up.");
-    for (let sectionY = 0; sectionY < image.height / 6; sectionY += SectionStep) {
+    for (let sectionY = 0; sectionY < image.height / 3; sectionY += SectionStep) {
         let sectionHeight = Math.min(image.height - sectionY, SectionHeight);
         console.log(`Examining y = [${sectionY}..${sectionY + sectionHeight - 1}] of ${image.height}.`)
 
@@ -419,6 +427,9 @@ async function main() {
     twoPdfUrls.push(pdfUrls[0]);
     if (pdfUrls.length >= 2)
         twoPdfUrls.push(pdfUrls[getRandom(1, pdfUrls.length)]);
+
+console.log("Temporary test with hard coded URL.");
+twoPdfUrls = [ "https://www.prospect.sa.gov.au/webdata/resources/files/New%20DAs%207%20May%202018%20to%2020%20May%202018.pdf" ];
 
     for (let pdfUrl of twoPdfUrls) {
         // Read the PDF containing an image of several development applications.  Note that setting
