@@ -64,7 +64,10 @@ async function insertRow(database, developmentApplication) {
                 reject(error);
             } else {
                 if (this.changes > 0)
-                    console.log(`    Inserted new application \"${developmentApplication.applicationNumber}\" with address \"${developmentApplication.address}\" into the database.`);
+                    console.log(`    Application \"${developmentApplication.applicationNumber}\" with address \"${developmentApplication.address}\" was inserted into the database.`);
+                else
+                    console.log(`    Application \"${developmentApplication.applicationNumber}\" with address \"${developmentApplication.address}\" was already present in the database.`);
+
                 sqlStatement.finalize();  // releases any locks
                 resolve(row);
             }
@@ -481,6 +484,10 @@ async function main() {
             twoPdfUrls = [ pdfUrls[getRandom(1, pdfUrls.length)], pdfUrls[0] ];
     }
 
+    console.log("Selected the following URLs to parse:");
+    for (let pdfUrl of twoPdfUrls)
+        console.log(`    ${pdfUrl}`);
+    
     for (let pdfUrl of twoPdfUrls) {
         // Read the PDF containing an image of several development applications.  Note that setting
         // disableFontFace to true avoids a "document is not defined" exception that is otherwise
