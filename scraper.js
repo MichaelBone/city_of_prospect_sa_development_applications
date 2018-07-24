@@ -370,7 +370,7 @@ async function parseImage(pdfUrl, image) {
         // the image (because this significantly improves the OCR results, but also significantly
         // increases memory usage).
 
-        jimpImage.crop(0, sectionY, image.width, sectionHeight).scale(6.0, jimp.RESIZE_BEZIER);
+        jimpImage.crop(0, sectionY, image.width, sectionHeight).scale(5.0, jimp.RESIZE_BEZIER);
         let imageBuffer = await (new Promise((resolve, reject) => jimpImage.getBuffer(jimp.MIME_PNG, (error, buffer) => resolve(buffer))));
 
         // Perform OCR on the image (this is extremely memory and CPU intensive).
