@@ -151,7 +151,7 @@ function formatAddress(address) {
     return streetNumber + " " + streetName + " " + suburbName + " " + stateAbbreviation + " " + postCode;
 }
 
-// Choose the development applications that have the highest confidence value.
+// Chooses the development applications that have the highest confidence value.
 
 function chooseDevelopmentApplications(candidateDevelopmentApplications) {
     // Where there are multiple candidate development applications (with the same application
