@@ -324,7 +324,7 @@ async function parseImage(pdfUrl, image) {
         }
 
         // Attempt to remove any horizontal black lines (as these usually interfere with the
-        // recognition of characters that have descenders such as "g", "p", "q" and "y").
+        // recognition of characters that have descenders such as "g", "j", "p", "q" and "y").
 
         let previousColors = null;
         for (let y = 0; y < image.height; y++) {
