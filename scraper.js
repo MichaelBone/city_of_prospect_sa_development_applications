@@ -12,7 +12,8 @@ let moment = require("moment");
 let tesseract = require("tesseract.js");
 let pdfjs = require("pdfjs-dist");
 let jimp = require("jimp");
-let didyoumean2 = require("didyoumean2");
+let didyoumean = require("didyoumean2");
+let fs = require("fs");
 
 const DevelopmentApplicationsUrl = "http://www.prospect.sa.gov.au/developmentregister";
 const CommentUrl = "mailto:admin@prospect.sa.gov.au";
@@ -23,6 +24,11 @@ const LineHeight = 15;  // the tallest line of text is approximately 15 pixels h
 const SectionHeight = LineHeight * 2;  // the text will be examined in sections this height (in pixels)
 const SectionStep = 5;  // the next section of text examined will be offset vertically this number of pixels
 const ColumnGap = LineHeight * 3;  // the horizontal gap between columns is always larger than about three line heights
+
+// All street and suburb names used when correcting addresses.
+
+let AllStreetNames = null;
+let AllSuburbNames = null;
 
 // Sets up an sqlite database.
 
@@ -65,10 +71,85 @@ async function insertRow(database, developmentApplication) {
     });
 }
 
+// Format address correcting any minor spelling errors.  An address is expected to be in the
+// following format:
+//
+//     <StreetNumber> <StreetName> <SuburbName> <StateAbbreviation> <PostCode>
+//
+// where,
+//
+//     <StreetNumber> may contain digits, dashes and slashes (with no spaces)
+//     <StreetName> is in mixed case and may contain spaces
+//     <SuburbName> is in all uppercase and may contain spaces
+//     <StateAbbreviation> is in all uppercase and may not contain spaces
+//     <PostCode> is four digits
+//
+// for example,
+//
+//     2/121-130A Main North Road MEDINDIE GARDENS SA 5083
+
+function formatAddress(address) {
+    let tokens = address.trim().split(/\s+/);
+    
+    // Extract the street number at the start and the state abbreviation and post code at the end.
+
+    if (tokens.length < 3)
+        return address;
+
+    let streetNumber = tokens[0];
+    let stateAbbreviation = tokens[tokens.length - 2];
+    let postCode = tokens[tokens.length - 1];
+
+    if (stateAbbreviation.length === 0 || !/^[0-9][0-9][0-9][0-9]$/.test(postCode))
+        return address;
+
+    // Extract all mixed case words of the street name.
+
+    let index = 1;
+    let streetNameTokens = [];
+    for (; index < tokens.length - 2 && (tokens[index].length === 1 || tokens[index] !== tokens[index].toUpperCase()); index++)
+        streetNameTokens.push(tokens[index]);
+    if (streetNameTokens.length === 0)
+        return address;
+
+    // Extract any remaining words as the suburb name.
+
+    let suburbNameTokens = [];
+    for (; index < tokens.length - 2; index++)
+        suburbNameTokens.push(tokens[index]);
+    if (suburbNameTokens.length === 0)
+        return address;
+
+    // Attempt to correct the street and suburb name.
+
+    let hasCorrections = false;
+    let streetName = streetNameTokens.join(" ");
+    let suburbName = suburbNameTokens.join(" ");
+
+    let correctedStreetName = didyoumean(streetName, AllStreetNames, { caseSensitive: true, returnType: "first-closest-match", thresholdType: "edit-distance", threshold: 2, trimSpace: true });
+    if (correctedStreetName !== null && correctedStreetName !== streetName) {
+        console.log(`Changing "${streetName}" to "${correctedStreetName}" in "${address}".`);
+        streetName = correctedStreetName;
+        hasCorrections = true;
+    }
+
+    let correctedSuburbName = didyoumean(suburbName, AllSuburbNames, { caseSensitive: true, returnType: "first-closest-match", thresholdType: "edit-distance", threshold: 2, trimSpace: true });
+    if (correctedSuburbName !== null && correctedSuburbName !== suburbName) {
+        console.log(`Changing "${suburbName}" to "${correctedSuburbName}" in "${address}".`);
+        suburbName = correctedSuburbName;
+        hasCorrections = true;
+    }
+
+    if (!hasCorrections)
+        return address;
+
+    return streetNumber + " " + streetName + " " + suburbName + " " + stateAbbreviation + " " + postCode;
+}
+
 // Choose the development applications that have the highest confidence value.
 
 function chooseDevelopmentApplications(candidateDevelopmentApplications) {
-    // Where there are muliple canididate development applications (with the same application
+    // Where there are multiple canididate development applications (with the same application
     // number) choose the development application with the highest total confidence.
 
     let developmentApplications = {};
@@ -118,6 +199,7 @@ function parseLines(pdfUrl, lines) {
         let isAddress = false;
         let previousWord = null;
         let confidence = 0;
+
         for (let index = 2; index < filteredLine.length; index++) {
             let word = filteredLine[index];
             confidence += word.confidence;
@@ -146,16 +228,19 @@ function parseLines(pdfUrl, lines) {
             previousWord = word;
         }
 
-        if (address.trim() !== "")
-            candidateDevelopmentApplications.push({
-                applicationNumber: filteredLine[1].text.trim(),
-                address: address.trim(),
-                reason: description.trim(),
-                informationUrl: pdfUrl,
-                commentUrl: CommentUrl,
-                scrapeDate: moment().format("YYYY-MM-DD"),
-                receivedDate: moment(filteredLine[0].text.trim(), "D/MM/YYYY", true).format("YYYY-MM-DD"),
-                confidence: confidence });
+        address = formatAddress(address);
+        if (address.trim() === "")  // ensure that there actually is an address
+            continue;
+
+        candidateDevelopmentApplications.push({
+            applicationNumber: filteredLine[1].text.trim(),
+            address: address.trim(),
+            reason: description.trim(),
+            informationUrl: pdfUrl,
+            commentUrl: CommentUrl,
+            scrapeDate: moment().format("YYYY-MM-DD"),
+            receivedDate: moment(filteredLine[0].text.trim(), "D/MM/YYYY", true).format("YYYY-MM-DD"),
+            confidence: confidence });
     }
 
     return chooseDevelopmentApplications(candidateDevelopmentApplications);
@@ -177,7 +262,9 @@ async function parseImage(pdfUrl, image) {
     let lines = [];
 
     console.log(`Image x = [0..${image.width}], y = [0..${image.height}].`);
-    for (let sectionY = 0; sectionY < image.height; sectionY += SectionStep) {
+    // for (let sectionY = 0; sectionY < image.height; sectionY += SectionStep) {
+console.log("Temporary speed up.");
+    for (let sectionY = 0; sectionY < image.height / 6; sectionY += SectionStep) {
         let sectionHeight = Math.min(image.height - sectionY, SectionHeight);
         console.log(`Examining y = [${sectionY}..${sectionY + sectionHeight - 1}] of ${image.height}.`)
 
@@ -296,6 +383,11 @@ async function main() {
     // Ensure that the database exists.
 
     let database = await initializeDatabase();
+
+    // Read the files containing all possible suburb and street names.
+
+    AllStreetNames = fs.readFileSync("streetnames.txt").toString().replace(/\r/g, "").trim().split("\n");
+    AllSuburbNames = fs.readFileSync("suburbnames.txt").toString().replace(/\r/g, "").trim().split("\n");
 
     // Retrieve the page contain the link to the PDFs.
 
