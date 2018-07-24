@@ -294,20 +294,20 @@ console.log("Temporary speed up.");
         for (let y = 0; y < image.height; y++) {
             // Count the number of dark pixels across the current horizontal line.
 
-            let blackCount = 0;
+            let darkCount = 0;
             let colors = {};
             for (let x = 0; x < image.width; x++) {
                 let value = jimpImage.getPixelColor(x, y);
                 let color = jimp.intToRGBA(value);
                 if (color.r < 64 && color.g < 64 && color.b < 64 && color.a >= 196)
-                    blackCount++;
+                    darkCount++;
                 colors[value] = (colors[value] || 0) + 1;
             }
 
             // If there are a lot of dark pixels then it is very likely a black line.  Set all
             // those pixels to the most common colour on the immediately previous line.
 
-            if (blackCount >= image.width - 2 * ColumnGap && previousColors !== null) {
+            if (darkCount >= image.width - 2 * ColumnGap && previousColors !== null) {
                 // Find the most common colour on the previous line.
 
                 let previousColor = null;
