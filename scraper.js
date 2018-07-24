@@ -24,7 +24,7 @@ const LineHeight = 15;  // the tallest line of text is approximately 15 pixels h
 const SectionHeight = LineHeight * 2;  // the text will be examined in sections this height (in pixels)
 const SectionStep = 5;  // the next section of text examined will be offset vertically this number of pixels
 const ColumnGap = LineHeight * 3;  // the horizontal gap between columns is always larger than about three line heights
-const ColumnAlignment = 10;  // text above or below within this number of pixels is considered to be aligned at the start of a column
+const ColumnAlignment = 10;  // text above or below within this number of horizontal pixels is considered to be aligned at the start of a column
 
 // All street and suburb names used when correcting addresses.
 
@@ -144,6 +144,8 @@ function formatAddress(address) {
     if (!hasCorrections)
         return address;
 
+    // Reconstruct the corrected address.
+
     return streetNumber + " " + streetName + " " + suburbName + " " + stateAbbreviation + " " + postCode;
 }
 
@@ -171,7 +173,7 @@ function chooseDevelopmentApplications(candidateDevelopmentApplications) {
 function parseLines(pdfUrl, lines) {
     // Exclude lines that have low confidence or do not start with the expected text.
 
-    let filteredLines = []
+    let filteredLines = [];
     for (let line of lines) {
         // Exclude lines that have low confidence (ie. any word with less than 80% confidence;
         // the choice of 80% is an arbitrary choice, it is intended to exclude lines where the
@@ -187,10 +189,6 @@ function parseLines(pdfUrl, lines) {
 
         filteredLines.push(line);
     }
-
-console.log("Testing; filteredLines:");
-console.log(filteredLines);
-console.log("----------");
 
     // Determine where the description, applicant and address are located on each line.  This is
     // determined by looking for the sizable gaps between columns.
@@ -282,10 +280,6 @@ console.log("----------");
             confidence: confidence });
     }
 
-console.log("Candidate development applications:");
-console.log(candidateDevelopmentApplications);
-console.log("----------");
-
     return chooseDevelopmentApplications(candidateDevelopmentApplications);
 }
 
@@ -320,8 +314,8 @@ async function parseImage(pdfUrl, image) {
             }
         }
 
-        // Attempt to remove any horizontal black lines (as these interfere with recognition of
-        // characters with descenders such as "g", "p", "q" and "y").
+        // Attempt to remove any horizontal black lines (as these usually interfere with the
+        // recognition of characters with descenders such as "g", "p", "q" and "y").
 
         let previousColors = null;
         for (let y = 0; y < image.height; y++) {
@@ -425,7 +419,8 @@ async function main() {
 
     let database = await initializeDatabase();
 
-    // Read the files containing all possible suburb and street names.
+    // Read the files containing all possible suburb and street names (these are used later when
+    // correcting OCR text).
 
     AllStreetNames = fs.readFileSync("streetnames.txt").toString().replace(/\r/g, "").trim().split("\n");
     AllSuburbNames = fs.readFileSync("suburbnames.txt").toString().replace(/\r/g, "").trim().split("\n");
@@ -460,9 +455,6 @@ async function main() {
     twoPdfUrls.push(pdfUrls[0]);
     if (pdfUrls.length >= 2)
         twoPdfUrls.push(pdfUrls[getRandom(1, pdfUrls.length)]);
-
-console.log("Temporary test with hard coded URL.");
-twoPdfUrls = [ "https://www.prospect.sa.gov.au/webdata/resources/files/New%20DAs%207%20May%202018%20to%2020%20May%202018.pdf" ];
 
     for (let pdfUrl of twoPdfUrls) {
         // Read the PDF containing an image of several development applications.  Note that setting
