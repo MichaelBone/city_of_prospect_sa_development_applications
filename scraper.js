@@ -381,8 +381,7 @@ async function parseImage(pdfUrl, image) {
         // process being terminated by morph.io).
 
         let memoryUsage = process.memoryUsage();
-        if (Math.round(memoryUsage.rss / (1024 * 1024)) > 384 * 1024 * 1024)
-            console.log(`Memory Usage: rss: ${Math.round(memoryUsage.rss / (1024 * 1024))} MB, heapTotal: ${Math.round(memoryUsage.heapTotal / (1024 * 1024))} MB, heapUsed: ${Math.round(memoryUsage.heapUsed / (1024 * 1024))} MB, external: ${Math.round(memoryUsage.external / (1024 * 1024))} MB`);
+        console.log(`Memory Usage: rss: ${Math.round(memoryUsage.rss / (1024 * 1024))} MB, heapTotal: ${Math.round(memoryUsage.heapTotal / (1024 * 1024))} MB, heapUsed: ${Math.round(memoryUsage.heapUsed / (1024 * 1024))} MB, external: ${Math.round(memoryUsage.external / (1024 * 1024))} MB`);
         tesseract.terminate();
         if (global.gc)
             global.gc();
