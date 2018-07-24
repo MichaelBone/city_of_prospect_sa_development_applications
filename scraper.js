@@ -230,7 +230,7 @@ function parseLines(pdfUrl, lines) {
     let candidateDevelopmentApplications = [];
     for (let filteredLine of filteredLines) {
         let description = "";
-        let applicant = "";
+        let applicant = "";  // this is currently not used (but extracted for completeness)
         let address = "";
         let isDescription = true;
         let isApplicant = false;
