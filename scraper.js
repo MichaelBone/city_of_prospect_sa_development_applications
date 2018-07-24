@@ -64,7 +64,7 @@ async function insertRow(database, developmentApplication) {
                 reject(error);
             } else {
                 if (this.changes > 0)
-                    console.log(`    Inserted new application \"${developmentApplication.applicationNumber}\" into the database.`);
+                    console.log(`    Inserted new application \"${developmentApplication.applicationNumber}\" with address \"${developmentApplication.address}\" into the database.`);
                 sqlStatement.finalize();  // releases any locks
                 resolve(row);
             }
