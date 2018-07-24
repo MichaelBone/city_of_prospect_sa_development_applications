@@ -472,9 +472,14 @@ async function main() {
     // because this would take too long: OCR is extremely memory and CPU intensive).
 
     let twoPdfUrls = [];
-    twoPdfUrls.push(pdfUrls[0]);
-    if (pdfUrls.length >= 2)
-        twoPdfUrls.push(pdfUrls[getRandom(1, pdfUrls.length)]);
+    if (pdfUrls.length === 1)
+        twoPdfUrls = [ pdfUrls[0] ];
+    else if (pdfUrls.length >= 2) {
+        if (getRandom(0, 2) === 0)
+            twoPdfUrls = [ pdfUrls[0], pdfUrls[getRandom(1, pdfUrls.length)] ];
+        else
+            twoPdfUrls = [ pdfUrls[getRandom(1, pdfUrls.length)], pdfUrls[0] ];
+    }
 
     for (let pdfUrl of twoPdfUrls) {
         // Read the PDF containing an image of several development applications.  Note that setting
