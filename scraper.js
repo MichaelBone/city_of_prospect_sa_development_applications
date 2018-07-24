@@ -83,7 +83,7 @@ async function insertRow(database, developmentApplication) {
 //     <StreetName> is in mixed case and may contain spaces
 //     <SuburbName> is in all uppercase and may contain spaces
 //     <StateAbbreviation> is in all uppercase and may not contain spaces
-//     <PostCode> is four digits
+//     <PostCode> is four digits and may not contain spaces
 //
 // for example,
 //
@@ -122,7 +122,7 @@ function formatAddress(address) {
         return address;
 
     // Attempt to correct the street and suburb name (only allow a small amount of change because
-    // otherwise a valid street name such as "Churcher" could be accidentally convert to another
+    // otherwise a valid street name such as "Churcher" could be accidentally converted to another
     // equally valid street name such as "Church").
 
     let hasCorrections = false;
@@ -154,7 +154,7 @@ function formatAddress(address) {
 // Choose the development applications that have the highest confidence value.
 
 function chooseDevelopmentApplications(candidateDevelopmentApplications) {
-    // Where there are multiple canididate development applications (with the same application
+    // Where there are multiple candidate development applications (with the same application
     // number) choose the development application with the highest total confidence.
 
     let developmentApplications = {};
@@ -169,8 +169,9 @@ function chooseDevelopmentApplications(candidateDevelopmentApplications) {
 }
 
 // Parses the lines of words.  Each word in a line consists of a bounding box, the text that
-// exists in that bounding box and the confidence information determined by tesseract.js.  This
-// includes partitioning the text into columns (for example, the description and address columns).
+// exists in that bounding box and the confidence information determined by tesseract.js.  The
+// logic here also performs partitioning of the text into columns (for example, the description
+// and address columns).
 
 function parseLines(pdfUrl, lines) {
     // Exclude lines that have low confidence or do not start with the expected text.
@@ -181,7 +182,7 @@ function parseLines(pdfUrl, lines) {
         // the choice of 80% is an arbitrary choice, it is intended to exclude lines where the
         // sectioning of the image has resulted in a line being cut in half horizontally).
 
-        if (line.filter(word => word.confidence < 80).length > 0)
+        if (line.filter(word => word.confidence < 80).length > 0)  // 80% confidence
             continue;
 
         // Exclude lines that do not start with an application number and date.
@@ -193,7 +194,7 @@ function parseLines(pdfUrl, lines) {
     }
 
     // Determine where the description, applicant and address are located on each line.  This is
-    // determined by looking for the sizable gaps between columns.
+    // partly determined by looking for the sizable gaps between columns.
 
     let columns = [];
     for (let filteredLine of filteredLines) {
@@ -237,12 +238,14 @@ function parseLines(pdfUrl, lines) {
         let previousWord = null;
         let confidence = 0;
 
-        for (let index = 2; index < filteredLine.length; index++) {
+        for (let index = 2; index < filteredLine.length; index++) {  // ignore the first two columns (assumed to be the date and application number)
             let word = filteredLine[index];
             confidence += word.confidence;
 
             // Determine if this word lines up with the start of a column, or if there is a sizable
-            // gap between this word and the last.
+            // gap between this word and the last.  In either case assume the next column has been
+            // encountered (keeping in mind that there are five columns: date, application number,
+            // description, applicant and address).
 
             let column = columns.find(column => Math.abs(column.x - word.bounds.x) < ColumnAlignment);
             if (previousWord !== null && (word.bounds.x - (previousWord.bounds.x + previousWord.bounds.width) >= ColumnGap || column !== undefined)) {
@@ -282,6 +285,10 @@ function parseLines(pdfUrl, lines) {
             confidence: confidence });
     }
 
+    // Where the same development application number appears multiple times, choose the development
+    // application with the highest confidence value.  Application numbers often appear multiple
+    // times because the image is examined step by step in overlapping "sections".
+
     return chooseDevelopmentApplications(candidateDevelopmentApplications);
 }
 
@@ -295,8 +302,8 @@ function isApplicationNumber(text) {
 // Parses an image (from a PDF file).
 
 async function parseImage(pdfUrl, image) {
-    // The image is examined in overlapping windows to reduce the memory usage (there is currently
-    // a hard limit of 512 MB).
+    // The image is examined in overlapping sections to reduce the memory usage (there is currently
+    // a hard limit of 512 MB when running in morph.io).
 
     let lines = [];
 
@@ -317,7 +324,7 @@ async function parseImage(pdfUrl, image) {
         }
 
         // Attempt to remove any horizontal black lines (as these usually interfere with the
-        // recognition of characters with descenders such as "g", "p", "q" and "y").
+        // recognition of characters that have descenders such as "g", "p", "q" and "y").
 
         let previousColors = null;
         for (let y = 0; y < image.height; y++) {
@@ -337,14 +344,14 @@ async function parseImage(pdfUrl, image) {
             // those pixels to the most common colour on the immediately previous line.
 
             if (darkCount >= image.width - 2 * ColumnGap && previousColors !== null) {
-                // Find the most common colour on the previous line.
+                // Find the most common colour on the immediately previous line.
 
                 let previousColor = null;
                 for (let color in previousColors)
                     if (previousColor === null || previousColors[color] > previousColors[previousColor])
                         previousColor = color;
 
-                // Set the entire line to the most common colour.
+                // Set the entire line to the most common colour of the immediately previous line.
 
                 previousColor = Number(previousColor);
                 for (let x = 0; x < image.width; x++)
@@ -354,18 +361,19 @@ async function parseImage(pdfUrl, image) {
             previousColors = colors;
         }
 
-        // Grab a section of the image (this minimises memory usage) and upscale it (this improves
-        // the OCR results).
+        // Grab a section of the image (this minimises memory usage) and upscale the section of
+        // the image (because this significantly improves the OCR results, but also significantly
+        // increases memory usage).
 
         jimpImage.crop(0, sectionY, image.width, sectionHeight).scale(6.0, jimp.RESIZE_BEZIER);
         let imageBuffer = await (new Promise((resolve, reject) => jimpImage.getBuffer(jimp.MIME_PNG, (error, buffer) => resolve(buffer))));
 
-        // Perform OCR on the image.
+        // Perform OCR on the image (this is extremely memory and CPU intensive).
 
         let result = await new Promise((resolve, reject) => { tesseract.recognize(imageBuffer).then(function(result) { resolve(result); }) });
 
         // Attempt to avoid reaching 512 MB memory usage (this will otherwise result in the current
-        // process being terminated in morph.io).
+        // process being terminated by morph.io).
 
         let memoryUsage = process.memoryUsage();
         console.log(`Memory Usage: rss: ${Math.round(memoryUsage.rss / (1024 * 1024))} MB, heapTotal: ${Math.round(memoryUsage.heapTotal / (1024 * 1024))} MB, heapUsed: ${Math.round(memoryUsage.heapUsed / (1024 * 1024))} MB, external: ${Math.round(memoryUsage.external / (1024 * 1024))} MB`);
@@ -382,7 +390,7 @@ async function parseImage(pdfUrl, image) {
                         lines.push(line.words.map(word => { return { text: word.text, confidence: word.confidence, choices: word.choices.length, bounds: { x: word.bbox.x0, y: word.bbox.y0, width: word.bbox.x1 - word.bbox.x0, height: word.bbox.y1 - word.bbox.y0 } }; }));
     }
 
-    // Analyse the lines of words.
+    // Analyse the lines of words to extract development application details.
 
     return parseLines(pdfUrl, lines);
 }
@@ -432,7 +440,7 @@ async function main() {
     AllStreetNames = fs.readFileSync("streetnames.txt").toString().replace(/\r/g, "").trim().split("\n");
     AllSuburbNames = fs.readFileSync("suburbnames.txt").toString().replace(/\r/g, "").trim().split("\n");
 
-    // Retrieve the page contain the link to the PDFs.
+    // Retrieve the page containing the links to the development application PDFs.
 
     console.log(`Retrieving page: ${DevelopmentApplicationsUrl}`);
     let body = await request(DevelopmentApplicationsUrl);
@@ -456,7 +464,7 @@ async function main() {
     }
 
     // Parse the most recent PDF and one other randomly selected PDF (do not parse all PDFs
-    // because this would take too long).
+    // because this would take too long: OCR is extremely memory and CPU intensive).
 
     let twoPdfUrls = [];
     twoPdfUrls.push(pdfUrls[0]);
