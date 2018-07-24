@@ -160,9 +160,9 @@ function chooseDevelopmentApplications(candidateDevelopmentApplications) {
     let confidentDevelopmentApplications = {};
 
     for (let candidateDevelopmentApplication of candidateDevelopmentApplications) {
-        let developmentApplication = confidentDevelopmentApplication[candidateDevelopmentApplication.applicationNumber];
+        let developmentApplication = confidentDevelopmentApplications[candidateDevelopmentApplication.applicationNumber];
         if (developmentApplication === undefined || (developmentApplication !== undefined && developmentApplication.confidence < candidateDevelopmentApplication.confidence))
-        confidentDevelopmentApplication[candidateDevelopmentApplication.applicationNumber] = candidateDevelopmentApplication;
+        confidentDevelopmentApplications[candidateDevelopmentApplication.applicationNumber] = candidateDevelopmentApplication;
     }
 
     // Convert the high confidence development applications to an array.
