@@ -26,7 +26,7 @@ const SectionStep = 5;  // the next section of text examined will be offset vert
 const ColumnGap = LineHeight * 3;  // the horizontal gap between columns is always larger than about three line heights
 const ColumnAlignment = 10;  // text above or below within this number of horizontal pixels is considered to be aligned at the start of a column
 
-// All street and suburb names used when correcting addresses.
+// All street and suburb names (used when correcting addresses).
 
 let AllStreetNames = null;
 let AllSuburbNames = null;
@@ -72,7 +72,7 @@ async function insertRow(database, developmentApplication) {
     });
 }
 
-// Format address correcting any minor spelling errors.  An address is expected to be in the
+// Formats addresses, correcting any minor spelling errors.  An address is expected to be in the
 // following format:
 //
 //     <StreetNumber> <StreetName> <SuburbName> <StateAbbreviation> <PostCode>
@@ -121,7 +121,9 @@ function formatAddress(address) {
     if (suburbNameTokens.length === 0)
         return address;
 
-    // Attempt to correct the street and suburb name.
+    // Attempt to correct the street and suburb name (only allow a small amount of change because
+    // otherwise a valid street name such as "Churcher" could be accidentally convert to another
+    // equally valid street name such as "Church").
 
     let hasCorrections = false;
     let streetName = streetNameTokens.join(" ");
@@ -129,14 +131,14 @@ function formatAddress(address) {
 
     let correctedStreetName = didyoumean(streetName, AllStreetNames, { caseSensitive: true, returnType: "first-closest-match", thresholdType: "edit-distance", threshold: 2, trimSpace: true });
     if (correctedStreetName !== null && correctedStreetName !== streetName) {
-        console.log(`Changing "${streetName}" to "${correctedStreetName}" in "${address}".`);
+        console.log(`Changing "${streetName}" to "${correctedStreetName}" in "${address.trim()}".`);
         streetName = correctedStreetName;
         hasCorrections = true;
     }
 
     let correctedSuburbName = didyoumean(suburbName, AllSuburbNames, { caseSensitive: true, returnType: "first-closest-match", thresholdType: "edit-distance", threshold: 2, trimSpace: true });
     if (correctedSuburbName !== null && correctedSuburbName !== suburbName) {
-        console.log(`Changing "${suburbName}" to "${correctedSuburbName}" in "${address}".`);
+        console.log(`Changing "${suburbName}" to "${correctedSuburbName}" in "${address.trim()}".`);
         suburbName = correctedSuburbName;
         hasCorrections = true;
     }
@@ -156,14 +158,14 @@ function chooseDevelopmentApplications(candidateDevelopmentApplications) {
     // number) choose the development application with the highest total confidence.
 
     let developmentApplications = {};
+
     for (let candidateDevelopmentApplication of candidateDevelopmentApplications) {
         let developmentApplication = developmentApplications[candidateDevelopmentApplication.applicationNumber];
         if (developmentApplication === undefined || (developmentApplication !== undefined && developmentApplication.confidence < candidateDevelopmentApplication.confidence))
             developmentApplications[candidateDevelopmentApplication.applicationNumber] = candidateDevelopmentApplication;
     }
 
-    for (let applicationNumber in developmentApplications)
-        console.log(developmentApplications[applicationNumber]);
+    return developmentApplications;
 }
 
 // Parses the lines of words.  Each word in a line consists of a bounding box, the text that
@@ -382,7 +384,7 @@ async function parseImage(pdfUrl, image) {
 
     // Analyse the lines of words.
 
-    parseLines(pdfUrl, lines);
+    return parseLines(pdfUrl, lines);
 }
 
 // Parses a single PDF file.
@@ -400,7 +402,12 @@ async function parsePdf(pdfUrl, pdf) {
             if (operators.fnArray[index] === pdfjs.OPS.paintImageXObject) {
                 let operator = operators.argsArray[index][0];
                 let image = page.objs.get(operator);
-                await parseImage(pdfUrl, image);
+                let developmentApplications = await parseImage(pdfUrl, image);
+
+                // Insert the resulting development applications into the database.
+
+                for (let developmentApplication of developmentApplications)
+                    await insertRow(database, developmentApplication);
             }
         }
     }
@@ -463,21 +470,8 @@ async function main() {
 
         console.log(`Retrieving document: ${pdfUrl}`);
         let pdf = await pdfjs.getDocument({ url: pdfUrl, disableFontFace: true });
-        await parsePdf(pdfUrl, pdf);
+        await parsePdf(pdfUrl, pdf);  // this inserts development applications into the database
     }
-
-    // for (let row of rows) {
-    //     let receivedDate = moment(row[3].trim(), "D/MM/YYYY", true);  // allows the leading zero of the day to be omitted
-    //     await insertRow(database, {
-    //         applicationNumber: row[2].trim(),
-    //         address: row[1].trim(),
-    //         reason: row[5].trim(),
-    //         informationUrl: pdfUrl.href,
-    //         commentUrl: CommentUrl,
-    //         scrapeDate: moment().format("YYYY-MM-DD"),
-    //         receivedDate: receivedDate.isValid ? receivedDate.format("YYYY-MM-DD") : ""
-    //     });
-    // }
 }
 
 main().then(() => console.log("Complete.")).catch(error => console.error(error));
