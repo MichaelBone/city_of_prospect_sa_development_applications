@@ -24,6 +24,7 @@ const LineHeight = 15;  // the tallest line of text is approximately 15 pixels h
 const SectionHeight = LineHeight * 2;  // the text will be examined in sections this height (in pixels)
 const SectionStep = 5;  // the next section of text examined will be offset vertically this number of pixels
 const ColumnGap = LineHeight * 3;  // the horizontal gap between columns is always larger than about three line heights
+const ColumnAlignment = 10;  // text above or below within this number of pixels is considered to be aligned at the start of a column
 
 // All street and suburb names used when correcting addresses.
 
@@ -164,7 +165,8 @@ function chooseDevelopmentApplications(candidateDevelopmentApplications) {
 }
 
 // Parses the lines of words.  Each word in a line consists of a bounding box, the text that exists
-// in that bounding box and the confidence information determined by tesseract.js.
+// in that bounding box and the confidence information determined by tesseract.js.  This includes
+// partitioning the text into columns (for example, the description and address columns).
 
 function parseLines(pdfUrl, lines) {
     // Exclude lines that have low confidence or do not start with the expected text.
@@ -192,6 +194,30 @@ console.log("----------");
 
     // Determine where the description, applicant and address are located on each line.  This is
     // determined by looking for the sizable gaps between columns.
+
+    let columns = [];
+    for (let filteredLine of filteredLines) {
+        let previousWord = null;
+        for (let word of filteredLine) {
+            if (previousWord === null || word.bounds.x - (previousWord.bounds.x + previousWord.bounds.width) >= ColumnGap) {
+                // Found the potential start of another column (count how many times this occurs
+                // at the current X co-ordinate; the more times the more likely it is that this
+                // is actually the start of a column).
+
+                let columnX = word.bounds.x;
+                let closestColumn = columns.find(column => Math.abs(columnX - column.x) < ColumnAlignment);
+                if (closestColumn !== undefined)
+                    closestColumn.count++;
+                else
+                    columns.push({ x: columnX, count: 1 });
+            }
+            previousWord = word;
+        }
+    }
+
+    console.log(columns);
+console.log("Stopping early.");
+return;
 
     let candidateDevelopmentApplications = [];
     for (let filteredLine of filteredLines) {
@@ -270,9 +296,7 @@ async function parseImage(pdfUrl, image) {
     let lines = [];
 
     console.log(`Image x is [0..${image.width - 1}], y is [0..${image.height - 1}].`);
-    // for (let sectionY = 0; sectionY < image.height; sectionY += SectionStep) {
-console.log("Temporary speed up.");
-    for (let sectionY = 0; sectionY < image.height / 3; sectionY += SectionStep) {
+    for (let sectionY = 0; sectionY < image.height; sectionY += SectionStep) {
         let sectionHeight = Math.min(image.height - sectionY, SectionHeight);
         console.log(`Examining y in [${sectionY}..${sectionY + sectionHeight - 1}] of [0..${image.height - 1}].`)
 
