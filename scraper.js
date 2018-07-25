@@ -21,9 +21,7 @@ const CommentUrl = "mailto:admin@prospect.sa.gov.au";
 // Heights and widths used when recognising text in an image.
 
 const LineHeight = 15;  // the tallest line of text is approximately 15 pixels high
-// const SectionHeight = LineHeight * 2;  // the text will be examined in sections this height (in pixels)
-    console.log("Testing.");
-    const SectionHeight = 20;  // the text will be examined in sections this height (in pixels)
+const SectionHeight = LineHeight * 2;  // the text will be examined in sections this height (in pixels)
 const SectionStep = 5;  // the next section of text examined will be offset vertically this number of pixels
 const ColumnGap = LineHeight * 3;  // the horizontal gap between columns is always larger than about three line heights
 const ColumnAlignment = 10;  // text above or below within this number of horizontal pixels is considered to be aligned at the start of a column
@@ -382,9 +380,7 @@ async function parseImage(pdfUrl, image) {
         // the image (because this significantly improves the OCR results, but also significantly
         // increases memory usage).
 
-        // jimpImage.crop(0, sectionY, image.width, sectionHeight).scale(5.0, jimp.RESIZE_BEZIER);
-console.log("Testing 6.0.");
-jimpImage.crop(0, sectionY, image.width, sectionHeight).scale(6.0, jimp.RESIZE_BEZIER);
+        jimpImage.crop(0, sectionY, image.width, sectionHeight).scale(5.0, jimp.RESIZE_BEZIER);
         let imageBuffer = await (new Promise((resolve, reject) => jimpImage.getBuffer(jimp.MIME_PNG, (error, buffer) => resolve(buffer))));
 
         // Perform OCR on the image (this is extremely memory and CPU intensive).
@@ -495,9 +491,6 @@ async function main() {
             twoPdfUrls = [ pdfUrls[getRandom(1, pdfUrls.length)], pdfUrls[0] ];
     }
 
-console.log("Testing.");
-twoPdfUrls = [ "http://www.prospect.sa.gov.au/webdata/resources/files/New%20DAs%2012%20February%202018%20to%2025%20February%202018.docx.pdf" ];
-    
     console.log("Selected the following PDFs to parse:");
     for (let pdfUrl of twoPdfUrls)
         console.log(`    ${pdfUrl}`);
