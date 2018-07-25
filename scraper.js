@@ -380,7 +380,9 @@ async function parseImage(pdfUrl, image) {
         // the image (because this significantly improves the OCR results, but also significantly
         // increases memory usage).
 
-        jimpImage.crop(0, sectionY, image.width, sectionHeight).scale(5.0, jimp.RESIZE_BEZIER);
+        // jimpImage.crop(0, sectionY, image.width, sectionHeight).scale(5.0, jimp.RESIZE_BEZIER);
+console.log("Testing 6.0.");
+jimpImage.crop(0, sectionY, image.width, sectionHeight).scale(6.0, jimp.RESIZE_BEZIER);
         let imageBuffer = await (new Promise((resolve, reject) => jimpImage.getBuffer(jimp.MIME_PNG, (error, buffer) => resolve(buffer))));
 
         // Perform OCR on the image (this is extremely memory and CPU intensive).
@@ -491,6 +493,9 @@ async function main() {
             twoPdfUrls = [ pdfUrls[getRandom(1, pdfUrls.length)], pdfUrls[0] ];
     }
 
+console.log("Testing.");
+twoPdfUrls = [ "http://www.prospect.sa.gov.au/webdata/resources/files/New%20DAs%2012%20February%202018%20to%2025%20February%202018.docx.pdf" ];
+    
     console.log("Selected the following PDFs to parse:");
     for (let pdfUrl of twoPdfUrls)
         console.log(`    ${pdfUrl}`);
