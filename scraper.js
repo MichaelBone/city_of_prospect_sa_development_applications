@@ -195,7 +195,9 @@ function parseLines(pdfUrl, lines) {
 
         // Exclude lines that do not start with an application number and date.
 
-        if (line.length < 2 || !moment(line[0].text.trim(), "D/MM/YYYY", true).isValid() || !isApplicationNumber(line[1].text.trim()))
+        if (line.length < 2 ||
+            (!moment(line[0].text.trim(), "D/MM/YYYY", true).isValid() && !moment(line[0].text.trim(), "YYYY-MM-DDTHH:mm:ss", true).isValid()) ||
+            !isApplicationNumber(line[1].text.trim()))
             continue;
 
         filteredLines.push(line);
@@ -282,6 +284,10 @@ function parseLines(pdfUrl, lines) {
         if (address.trim() === "")  // ensure that there actually is an address
             continue;
 
+        let receivedDate = moment(filteredLine[0].text.trim(), "D/MM/YYYY", true);
+        if (!receivedDate.isValid())
+            receivedDate = moment(filteredLine[0].text.trim(), "YYYY-MM-DDTHH:mm:ss", true);
+        
         candidateDevelopmentApplications.push({
             applicationNumber: filteredLine[1].text.trim(),
             address: address.trim(),
@@ -289,7 +295,7 @@ function parseLines(pdfUrl, lines) {
             informationUrl: pdfUrl,
             commentUrl: CommentUrl,
             scrapeDate: moment().format("YYYY-MM-DD"),
-            receivedDate: moment(filteredLine[0].text.trim(), "D/MM/YYYY", true).format("YYYY-MM-DD"),
+            receivedDate: receivedDate.format("YYYY-MM-DD"),
             confidence: confidence });
     }
 
@@ -300,11 +306,12 @@ function parseLines(pdfUrl, lines) {
     return chooseDevelopmentApplications(candidateDevelopmentApplications);
 }
 
-// Determines whether the specified text represents an application number.  A strict format of
+// Determines whether the specified text represents an application number.  A format of
 // "nnn/nnn/nnnn", "nnn/nn/nnnn" or "nnn/n/nnnn" is assumed.  For example, "030/279/2018".
+// In one case an alternative format of "nnn/nnnn/nnn" was used (so allow for this too).
 
 function isApplicationNumber(text) {
-    return /^[0-9]{3}\/[0-9]{1,3}\/[0-9]{4}$/.test(text)
+    return /^[0-9]{3}\/[0-9]{1,3}\/[0-9]{4}$/.test(text) || /^[0-9]{3}\/[0-9]{4}\/[0-9]{1,3}$/.test(text);
 }
 
 // Parses an image (from a PDF file).
