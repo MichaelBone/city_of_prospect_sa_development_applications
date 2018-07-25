@@ -491,7 +491,7 @@ async function main() {
             twoPdfUrls = [ pdfUrls[getRandom(1, pdfUrls.length)], pdfUrls[0] ];
     }
 
-    console.log("Selected the following URLs to parse:");
+    console.log("Selected the following PDFs to parse:");
     for (let pdfUrl of twoPdfUrls)
         console.log(`    ${pdfUrl}`);
     
