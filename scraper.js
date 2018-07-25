@@ -21,7 +21,9 @@ const CommentUrl = "mailto:admin@prospect.sa.gov.au";
 // Heights and widths used when recognising text in an image.
 
 const LineHeight = 15;  // the tallest line of text is approximately 15 pixels high
-const SectionHeight = LineHeight * 2;  // the text will be examined in sections this height (in pixels)
+// const SectionHeight = LineHeight * 2;  // the text will be examined in sections this height (in pixels)
+    console.log("Testing.");
+    const SectionHeight = 20;  // the text will be examined in sections this height (in pixels)
 const SectionStep = 5;  // the next section of text examined will be offset vertically this number of pixels
 const ColumnGap = LineHeight * 3;  // the horizontal gap between columns is always larger than about three line heights
 const ColumnAlignment = 10;  // text above or below within this number of horizontal pixels is considered to be aligned at the start of a column
