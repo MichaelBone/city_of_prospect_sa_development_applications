@@ -182,11 +182,11 @@ function parseLines(pdfUrl, lines) {
 
     let filteredLines = [];
     for (let line of lines) {
-        // Exclude lines that have low confidence (ie. any word with less than 80% confidence;
-        // the choice of 80% is an arbitrary choice, it is intended to exclude lines where the
+        // Exclude lines that have low confidence (ie. any word with less than 75% confidence;
+        // the choice of 75% is an arbitrary choice, it is intended to exclude lines where the
         // sectioning of the image has resulted in a line being cut in half horizontally).
 
-        if (line.filter(word => word.confidence < 80).length > 0)  // 80% confidence
+        if (line.filter(word => word.confidence < 75).length > 0)  // 75% confidence
             continue;
 
         // Exclude lines that do not start with an application number and date.
@@ -198,7 +198,7 @@ function parseLines(pdfUrl, lines) {
 
         filteredLines.push(line);
     }
-
+    
     // Determine where the description, applicant and address are located on each line.  This is
     // partly determined by looking for the sizable gaps between columns.
 
@@ -220,7 +220,7 @@ function parseLines(pdfUrl, lines) {
             previousWord = word;
         }
     }
-
+    
     // Ignore columns that have low counts.
 
     let totalCount = 0;
@@ -409,6 +409,7 @@ async function parseImage(pdfUrl, image) {
 // Parses a single PDF file.
 
 async function parsePdf(database, pdfUrl, pdf) {
+    let imageCount = 0;
     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
         console.log(`Examining page ${pageNumber} of ${pdf.numPages} in the PDF.`);
 
@@ -421,6 +422,8 @@ async function parsePdf(database, pdfUrl, pdf) {
             if (operators.fnArray[index] === pdfjs.OPS.paintImageXObject) {
                 let operator = operators.argsArray[index][0];
                 let image = page.objs.get(operator);
+                imageCount++;
+                console.log(`Examining image ${imageCount} in the PDF.`);
                 let developmentApplications = await parseImage(pdfUrl, image);
 
                 // Insert the resulting development applications into the database.
@@ -487,10 +490,11 @@ async function main() {
             twoPdfUrls = [ pdfUrls[getRandom(1, pdfUrls.length)], pdfUrls[0] ];
     }
 
+pdfUrls.splice(0, 19);
 console.log(`Selecting ${pdfUrls.length} document(s).`);
 twoPdfUrls = pdfUrls;
 
-    console.log("Selected the following documnets to parse:");
+    console.log("Selected the following documents to parse:");
     for (let pdfUrl of twoPdfUrls)
         console.log(`    ${pdfUrl}`);
     
