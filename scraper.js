@@ -120,7 +120,7 @@ function formatAddress(address) {
         return address;  // give up after several spaces
 
     if (suburbName !== suburbNameToken)
-        console.log(`Changing "${suburbName}" to "${suburbNameToken}" in "${address.trim()}".`);
+        console.log(`Changing "${suburbNameToken}" to "${suburbName}" in "${address.trim()}".`);
     
     // Extract the street name, similarly allowing several spaces, and similarly attempting to
     // correct the street name (allowing only a small amount of change).
@@ -140,7 +140,7 @@ function formatAddress(address) {
     }
 
     if (streetName !== streetNameToken)
-        console.log(`Changing "${streetName}" to "${streetNameToken}" in "${address.trim()}".`);
+        console.log(`Changing "${streetNameToken}" to "${streetName}" in "${address.trim()}".`);
 
     // Reconstruct the corrected address.
 
