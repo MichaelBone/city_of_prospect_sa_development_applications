@@ -23,7 +23,7 @@ const CommentUrl = "mailto:admin@prospect.sa.gov.au";
 const LineHeight = 15;  // the tallest line of text is approximately 15 pixels high
 const SectionHeight = LineHeight * 2;  // the text will be examined in sections this height (in pixels)
 const SectionStep = 5;  // the next section of text examined will be offset vertically this number of pixels
-const ColumnGap = LineHeight * 3;  // the horizontal gap between columns is always larger than about three line heights
+const ColumnGap = LineHeight * 4;  // the horizontal gap between columns is mostly larger than about four line heights
 const ColumnAlignment = 10;  // text above or below within this number of horizontal pixels is considered to be aligned at the start of a column
 
 // All street and suburb names (used when correcting addresses).
@@ -95,63 +95,59 @@ async function insertRow(database, developmentApplication) {
 function formatAddress(address) {
     let tokens = address.trim().split(/\s+/);
     
-    // Extract the street number at the start and the state abbreviation and post code at the end.
+    // Extract the state abbreviation ("SA") and post code at the end (for example, "5081").
 
     if (tokens.length < 3)
         return address;
-
-    let streetNumber = tokens[0];
-    let stateAbbreviation = tokens[tokens.length - 2];
-    let postCode = tokens[tokens.length - 1];
-
+    let postCode = tokens.pop();
+    let stateAbbreviation = tokens.pop();
     if (stateAbbreviation.length === 0 || !/^[0-9][0-9][0-9][0-9]$/.test(postCode))
         return address;
 
-    // Extract all mixed case words of the street name.
+    // Extract the suburb name, allowing several spaces.  For example, "MEDI NDIE GARDE NS" and
+    // "FIT ZROY".  This attempts to correct the suburb name (but only allows a small amount of
+    // change because other a valid street or suburb name such as "Churcher" could be accidentally
+    // converted to another equally valid street or suburub name such as "Church").
 
-    let index = 1;
-    let streetNameTokens = [];
-    for (; index < tokens.length - 2 && (tokens[index].length === 1 || tokens[index] !== tokens[index].toUpperCase()); index++)
-        streetNameTokens.push(tokens[index]);
-    if (streetNameTokens.length === 0)
-        return address;
-
-    // Extract any remaining words as the suburb name.
-
-    let suburbNameTokens = [];
-    for (; index < tokens.length - 2; index++)
-        suburbNameTokens.push(tokens[index]);
-    if (suburbNameTokens.length === 0)
-        return address;
-
-    // Attempt to correct the street and suburb name (only allow a small amount of change because
-    // otherwise a valid street name such as "Churcher" could be accidentally converted to another
-    // equally valid street name such as "Church").
-
-    let hasCorrections = false;
-    let streetName = streetNameTokens.join(" ");
-    let suburbName = suburbNameTokens.join(" ");
-
-    let correctedStreetName = didyoumean(streetName, AllStreetNames, { caseSensitive: true, returnType: "first-closest-match", thresholdType: "edit-distance", threshold: 2, trimSpace: true });
-    if (correctedStreetName !== null && correctedStreetName !== streetName) {
-        console.log(`Changing "${streetName}" to "${correctedStreetName}" in "${address.trim()}".`);
-        streetName = correctedStreetName;
-        hasCorrections = true;
+    let suburbName = null;
+    let suburbNameToken = null;
+    for (let index = 0; index < 3 && suburbName === null; index++) {
+        suburbNameToken = (tokens.pop() || "") + ((index === 0) ? "" : (" " + suburbNameToken));
+        suburbName = didyoumean(suburbNameToken, AllSuburbNames, { caseSensitive: true, returnType: "first-closest-match", thresholdType: "edit-distance", threshold: 2, trimSpace: true });
     }
 
-    let correctedSuburbName = didyoumean(suburbName, AllSuburbNames, { caseSensitive: true, returnType: "first-closest-match", thresholdType: "edit-distance", threshold: 2, trimSpace: true });
-    if (correctedSuburbName !== null && correctedSuburbName !== suburbName) {
-        console.log(`Changing "${suburbName}" to "${correctedSuburbName}" in "${address.trim()}".`);
-        suburbName = correctedSuburbName;
-        hasCorrections = true;
+    if (suburbName === null || tokens.length === 0)
+        return address;  // give up after several spaces
+
+    if (suburbName !== suburbNameToken)
+        console.log(`Changing "${suburbName}" to "${suburbNameToken}" in "${address.trim()}".`);
+    
+    // Extract the street name, similarly allowing several spaces, and similarly attempting to
+    // correct the street name (allowing only a small amount of change).
+
+    let streetName = null;
+    let streetNameToken = null;
+    for (let index = 0; index < 5 && streetName === null; index++) {
+        streetNameToken = (tokens.pop() || "") + ((index === 0) ? "" : (" " + streetNameToken));
+        streetName = didyoumean(streetNameToken, AllStreetNames, { caseSensitive: true, returnType: "first-closest-match", thresholdType: "edit-distance", threshold: 2, trimSpace: true });
     }
 
-    if (!hasCorrections)
-        return address;
+    if (streetName === null) {
+        if (suburbName === suburbNameToken)
+            return address;  // give up after several spaces
+        else
+            return (tokens.join(" ") + " " + streetNameToken).trim() + " " + suburbName + " " + stateAbbreviation + " " + postCode;  // attempt to preserve the corrected suburb name
+    }
+
+    if (streetName !== streetNameToken)
+        console.log(`Changing "${streetName}" to "${streetNameToken}" in "${address.trim()}".`);
 
     // Reconstruct the corrected address.
 
-    return streetNumber + " " + streetName + " " + suburbName + " " + stateAbbreviation + " " + postCode;
+    if (streetName === streetNameToken && suburbName === suburbNameToken)
+        return address;  // there were no corrections
+    
+    return (tokens.join(" ") + " " + streetName).trim() + " " + suburbName + " " + stateAbbreviation + " " + postCode;
 }
 
 // Chooses the development applications that have the highest confidence value.
@@ -493,7 +489,7 @@ async function main() {
 
 console.log(`Selecting ${pdfUrls.length} document(s).`);
 twoPdfUrls = pdfUrls;
-    
+
     console.log("Selected the following documnets to parse:");
     for (let pdfUrl of twoPdfUrls)
         console.log(`    ${pdfUrl}`);
