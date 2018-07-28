@@ -197,8 +197,6 @@ function formatAddress(address) {
         return formattedAddress;  // give up after several spaces (and assume the address is invalid)
 
     formattedAddress.hasRecognizedSuburb = true;
-    if (suburbNameMatch !== suburbName)
-        console.log(`Changing "${suburbName}" to "${suburbNameMatch}" in "${address.trim()}".`);
     
     // Extract the street name, similarly allowing several spaces, and similarly attempting to
     // correct the street name (allowing only a small amount of change).
@@ -227,8 +225,6 @@ function formatAddress(address) {
     }
 
     formattedAddress.hasRecognizedStreet = true;
-    if (streetNameMatch !== streetName)
-        console.log(`Changing "${streetName}" to "${streetNameMatch}" in "${address.trim()}".`);
 
     // Reconstruct the corrected address.
 
@@ -351,6 +347,8 @@ function parseLines(pdfUrl, lines) {
         // Re-format the address (making minor corrections where possible).
 
         let formattedAddress = formatAddress(address);
+        if (formattedAddress.address !== address)
+            console.log(`    Corrected "${addresss}" to "${formattedAddress.address}".`);
 
         // Parse the received date so that it can be reformatted.
 
@@ -466,7 +464,6 @@ async function parseImage(pdfUrl, image, scaleFactor) {
         // process being terminated by morph.io).
 
         let memoryUsage = process.memoryUsage();
-        console.log(`    Memory Usage: rss: ${Math.round(memoryUsage.rss / (1024 * 1024))} MB, heapTotal: ${Math.round(memoryUsage.heapTotal / (1024 * 1024))} MB, heapUsed: ${Math.round(memoryUsage.heapUsed / (1024 * 1024))} MB, external: ${Math.round(memoryUsage.external / (1024 * 1024))} MB`);
         tesseract.terminate();
         if (global.gc)
             global.gc();
