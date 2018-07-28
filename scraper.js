@@ -64,15 +64,84 @@ async function insertRow(database, developmentApplication) {
                 reject(error);
             } else {
                 if (this.changes > 0)
-                    console.log(`    Application \"${developmentApplication.applicationNumber}\" with address \"${developmentApplication.address}\" was inserted into the database.`);
+                    console.log(`    Application \"${developmentApplication.applicationNumber}\" ${developmentApplication.applicationNumberConfidence}% with address \"${developmentApplication.address}\" ${developmentApplication.addressConfidence}% and reason \"${developmentApplication.reason}\" ${developmentApplication.reasonConfidence}% was inserted into the database.`);
                 else
-                    console.log(`    Application \"${developmentApplication.applicationNumber}\" with address \"${developmentApplication.address}\" was already present in the database.`);
+                    console.log(`    Application \"${developmentApplication.applicationNumber}\" ${developmentApplication.applicationNumberConfidence}% with address \"${developmentApplication.address}\" ${developmentApplication.addressConfidence}% and reason \"${developmentApplication.reason}\" ${developmentApplication.reasonConfidence}% was already present in the database.`);
 
                 sqlStatement.finalize();  // releases any locks
                 resolve(row);
             }
         });
     });
+}
+
+// Chooses the development applications that have the highest confidence value (prioritising
+// high confidence addresses).
+
+function chooseDevelopmentApplications(developmentApplications) {
+    // Group the development applications by address (since this is the most important
+    // information).
+
+    let groupedApplications = {};
+
+    for (let develomentApplication of developmentApplications) {
+        // For an address to be considered valid it must at least have a street name (possibly
+        // not recognised) and a have a recognised suburb name.  Enforce that the development
+        // application number contains at least one slash.  And enforce that the address text
+        // has reasonably high confidence (at least 70%; this is an arbitrary value).
+
+        if (!develomentApplication.hasStreet ||
+            !develomentApplication.hasRecognizedSuburb || 
+            developmentApplication.applicationNumber === "" ||
+            developmentApplication.applicationNumber.indexOf("/") < 0 ||
+            developmentApplication.addressConfidence < 70)
+            continue;  // ignore the application
+
+        let group = groupedApplications[developmentApplications.address];
+        if (group === undefined) {
+            group = [];
+            groupedApplications[developmentApplications.address] = group;
+        }
+        group.push(developmentApplication);
+    }
+
+    // Within each group of applications with the same address select the application with the
+    // highest confidence address.  However, also prefer application numbers with two slashes.
+
+    let chosenApplications = [];
+
+    for (let address in groupedApplications) {
+        // Choose the application with the highest confidence address.
+
+        let group = groupedApplications[address];
+        let applicationWithBestAddress = group.reduce((a, b) => (a.addressConfidence > b.addressConfidence) ? a : b);
+
+        // Choose the application with the highest confidence application number, however regard
+        // applications that have slashes with higher confidence.  For example, this will choose
+        // "077/586/2018" over "077/586l2018" (even if the first one has lower confidence).
+
+        let applicationWithBestNumber = null;
+        let twoSlashApplications = group.filter(application => application.split("/").length - 1 === 2);
+        if (twoSlashApplications.length > 0)
+            applicationWithBestNumber = twoSlashApplications.reduce((a, b) => (a.applicationNumberConfidence > b.applicationNumberConfidence) ? a : b);
+        else {
+            let oneSlashApplications = group.filter(application => application.split("/").length - 1 === 1);
+            if (oneSlashApplications.length > 0)
+                applicationWithBestNumber = oneSlashApplications.reduce((a, b) => (a.applicationNumberConfidence > b.applicationNumberConfidence) ? a : b);
+            else
+                applicationWithBestNumber = group.reduce((a, b) => (a.applicationNumberConfidence > b.applicationNumberConfidence) ? a : b);
+        }
+
+        // Use the application with the highest confidence address, however override its
+        // application number with the application number from the application with the highest
+        // confidence application number (where the presence of slashes gives higher confidence).
+
+        applicationWithBestAddress.applicationNumber = applicationWithBestNumber.applicationNumber;
+        applicationWithBestAddress.applicationNumberConfidence = applicationWithBestNumber.applicationNumberConfidence;
+        chosenApplications.push(applicationWithBestAddress);
+    }
+
+    return chosenApplications;
 }
 
 // Formats addresses, correcting any minor spelling errors.  An address is expected to be in the
@@ -82,7 +151,7 @@ async function insertRow(database, developmentApplication) {
 //
 // where,
 //
-//     <StreetNumber> may contain digits, dashes and slashes (with no spaces)
+//     <StreetNumber> may contain digits, dashes, slashes (and sometimes spaces)
 //     <StreetName> is in mixed case and may contain spaces
 //     <SuburbName> is in all uppercase and may contain spaces
 //     <StateAbbreviation> is in all uppercase and may not contain spaces
@@ -94,118 +163,76 @@ async function insertRow(database, developmentApplication) {
 
 function formatAddress(address) {
     let tokens = address.trim().split(/\s+/);
-    
-    // Extract the state abbreviation ("SA") and post code at the end (for example, "5081").
-
-    if (tokens.length < 3)
-        return address;
-    let postCode = tokens.pop();
-    let stateAbbreviation = tokens.pop();
-    if (stateAbbreviation.length === 0 || !/^[0-9][0-9][0-9][0-9]$/.test(postCode))
-        return address;
-
-    // Extract the suburb name, allowing several spaces.  For example, "MEDI NDIE GARDE NS" and
-    // "FIT ZROY".  This attempts to correct the suburb name (but only allows a small amount of
-    // change because other a valid street or suburb name such as "Churcher" could be accidentally
-    // converted to another equally valid street or suburub name such as "Church").
+    let formattedAddress = { address: address, hasStreet: false, hasRecognizedStreet: false, hasRecognizedSuburb: false };
+        
+    // Extract the suburb name (with the state abbreviation "SA" and postcode "5081", "5082" or
+    // "5083") while allowing several spaces.  For example, "MEDI NDIE GARDE NS SA 5081" and
+    // "FIT ZROY SA 5082".  This attempts to correct the suburb name (but only allows a small
+    // amount of change because other a valid street or suburb name such as "Churcher" could be
+    // accidentally converted to another equally valid street or suburub name such as "Church").
 
     let suburbName = null;
-    let suburbNameToken = null;
-    for (let index = 0; index < 3 && suburbName === null; index++) {
-        suburbNameToken = (tokens.pop() || "") + ((index === 0) ? "" : (" " + suburbNameToken));
-        suburbName = didyoumean(suburbNameToken, AllSuburbNames, { caseSensitive: true, returnType: "first-closest-match", thresholdType: "edit-distance", threshold: 2, trimSpace: true });
+    let suburbNameMatch = null;
+    for (let index = 0; index < 5 && suburbNameMatch === null; index++) {
+        suburbName = (tokens.pop() || "") + ((index === 0) ? "" : (" " + suburbName));
+        suburbNameMatch = didyoumean(suburbName, AllSuburbNames, { caseSensitive: true, returnType: "first-closest-match", thresholdType: "edit-distance", threshold: 3, trimSpace: true });
     }
 
-    if (suburbName === null || tokens.length === 0)
-        return address;  // give up after several spaces
+    if (suburbNameMatch === null || tokens.length === 0)
+        return formattedAddress;  // give up after several spaces (and assume the address is invalid)
 
-    if (suburbName !== suburbNameToken)
-        console.log(`Changing "${suburbNameToken}" to "${suburbName}" in "${address.trim()}".`);
+    formattedAddress.hasRecognizedSuburb = true;
+    if (suburbNameMatch !== suburbName)
+        console.log(`Changing "${suburbName}" to "${suburbNameMatch}" in "${address.trim()}".`);
     
     // Extract the street name, similarly allowing several spaces, and similarly attempting to
-    // correct the street name (allowing only a small amount of change).
+    // correct the street name (allowing only a small amount of change).  Note that a threshold
+    // of 2 is used rather than 3 because otherwise "Cornu Street" of "Le Cornu Street" could
+    // possibly be changed to "Le Cane Street" (since there is a "Cane Street").
+
+    formattedAddress.hasStreet = (tokens.length > 0);
+    let removedTokens = [];
 
     let streetName = null;
-    let streetNameToken = null;
-    for (let index = 0; index < 5 && streetName === null; index++) {
-        streetNameToken = (tokens.pop() || "") + ((index === 0) ? "" : (" " + streetNameToken));
-        streetName = didyoumean(streetNameToken, AllStreetNames, { caseSensitive: true, returnType: "first-closest-match", thresholdType: "edit-distance", threshold: 2, trimSpace: true });
+    let streetNameMatch = null;
+    while (tokens.length > 0 && streetNameMatch === null) {
+        streetName = tokens.join(" ");
+        streetNameMatch = didyoumean(streetName, AllStreetNames, { caseSensitive: true, returnType: "first-closest-match", thresholdType: "edit-distance", threshold: 2, trimSpace: true });
+        removedTokens.shift(tokens.shift());
     }
 
-    if (streetName === null) {
-        if (suburbName === suburbNameToken)
-            return address;  // give up after several spaces
-        else
-            return (tokens.join(" ") + " " + streetNameToken).trim() + " " + suburbName + " " + stateAbbreviation + " " + postCode;  // attempt to preserve the corrected suburb name
+    if (streetNameMatch === null) {
+        if (suburbNameMatch !== suburbName)
+            formattedAddress.address = (removedTokens.join(" ") + " " + suburbNameMatch).trim();  // attempt to preserve the corrected suburb name
+        return formattedAddress;  // give up after several spaces
     }
 
-    if (streetName !== streetNameToken)
-        console.log(`Changing "${streetNameToken}" to "${streetName}" in "${address.trim()}".`);
+    formattedAddress.hasRecognizedStreet = true;
+    if (streetNameMatch !== streetName)
+        console.log(`Changing "${streetName}" to "${streetNameMatch}" in "${address.trim()}".`);
 
     // Reconstruct the corrected address.
 
-    if (streetName === streetNameToken && suburbName === suburbNameToken)
-        return address;  // there were no corrections
+    if (streetNameMatch !== streetName || suburbNameMatch !== suburbName)
+        formattedAddress.address = (removedTokens.join(" ") + " " + streetNameMatch).trim() + " " + suburbNameMatch;
     
-    return (tokens.join(" ") + " " + streetName).trim() + " " + suburbName + " " + stateAbbreviation + " " + postCode;
-}
-
-// Chooses the development applications that have the highest confidence value.
-
-function chooseDevelopmentApplications(candidateDevelopmentApplications) {
-    // Where there are multiple candidate development applications (with the same application
-    // number) choose the development application with the highest total confidence.
-
-    let confidentDevelopmentApplications = {};
-
-    for (let candidateDevelopmentApplication of candidateDevelopmentApplications) {
-        let developmentApplication = confidentDevelopmentApplications[candidateDevelopmentApplication.applicationNumber];
-        if (developmentApplication === undefined || (developmentApplication !== undefined && developmentApplication.confidence < candidateDevelopmentApplication.confidence))
-        confidentDevelopmentApplications[candidateDevelopmentApplication.applicationNumber] = candidateDevelopmentApplication;
-    }
-
-    // Convert the high confidence development applications to an array.
-
-    let developmentApplications = [];
-    for (let applicationNumber in confidentDevelopmentApplications)
-        developmentApplications.push(confidentDevelopmentApplications[applicationNumber]);
-    return developmentApplications;
+    return formattedAddress;
 }
 
 // Parses the lines of words.  Each word in a line consists of a bounding box, the text that
 // exists in that bounding box and the confidence information determined by tesseract.js.  The
-// logic here also performs partitioning of the text into columns (for example, the description
-// and address columns).
+// logic here also performs partitioning of the text into columns (for example, the reason and
+// address columns).
 
 function parseLines(pdfUrl, lines) {
-    // Exclude lines that have low confidence or do not start with the expected text.
-
-    let filteredLines = [];
-    for (let line of lines) {
-        // Exclude lines that have low confidence (ie. any word with less than 75% confidence;
-        // the choice of 75% is an arbitrary choice, it is intended to exclude lines where the
-        // sectioning of the image has resulted in a line being cut in half horizontally).
-
-        if (line.filter(word => word.confidence < 75).length > 0)  // 75% confidence
-            continue;
-
-        // Exclude lines that do not start with an application number and date.
-
-        if (line.length < 2 ||
-            (!moment(line[0].text.trim(), "D/MM/YYYY", true).isValid() && !moment(line[0].text.trim(), "YYYY-MM-DDTHH:mm:ss", true).isValid()) ||
-            !isApplicationNumber(line[1].text.trim()))
-            continue;
-
-        filteredLines.push(line);
-    }
-    
-    // Determine where the description, applicant and address are located on each line.  This is
-    // partly determined by looking for the sizable gaps between columns.
+    // Determine where the received date, application number, reason, applicant and address are
+    // located on each line.  This is partly determined by looking for the sizable gaps between
+    // columns.
 
     let columns = [];
-    for (let filteredLine of filteredLines) {
+    for (let line of lines) {
         let previousWord = null;
-        for (let word of filteredLine) {
+        for (let word of line) {
             if (previousWord === null || word.bounds.x - (previousWord.bounds.x + previousWord.bounds.width) >= ColumnGap) {
                 // Found the potential start of another column (count how many times this occurs
                 // at the current X co-ordinate; the more times the more likely it is that this
@@ -230,33 +257,52 @@ function parseLines(pdfUrl, lines) {
     columns = columns.filter(column => column.count > averageCount / 2);  // low counts indicate low likelihood of the start of a column (arbitrarily use the average count divided by two as a threshold)
     columns.sort((column1, column2) => (column1.x > column2.x) ? 1 : ((column1.x < column2.x) ? -1 : 0));
 
-    // Assume that there are five columns: date, application number, description, applicant and
-    // address.
+console.log("----------columns");
+console.log(columns);
 
-    let candidateDevelopmentApplications = [];
-    for (let filteredLine of filteredLines) {
-        let description = "";
+    // Assume that there are five columns: received date, application number, reason, applicant
+    // and address.
+
+    let developmentApplications = [];
+    for (let line of lines) {
+        let receivedDate = "";
+        let receivedDateConfidences = [];
+        let applicationNumber = "";
+        let applicationNumberConfidences = [];
+        let reason = "";
+        let reasonConfidences = [];
         let applicant = "";  // this is currently not used (but extracted for completeness)
+        let applicantConfidences = [];
         let address = "";
-        let isDescription = true;
+        let addressConfidences = [];
+
+        let isReceivedDate = true;
+        let isApplicationNumber = false;
+        let isReason = false;
         let isApplicant = false;
         let isAddress = false;
         let previousWord = null;
-        let confidence = 0;
 
-        for (let index = 2; index < filteredLine.length; index++) {  // ignore the first two columns (assumed to be the date and application number)
-            let word = filteredLine[index];
-            confidence += word.confidence;
+        // Group the words from the line into the five columns.
+
+        for (let index = 0; index < line.length; index++) {
+            let word = line[index];
 
             // Determine if this word lines up with the start of a column, or if there is a sizable
             // gap between this word and the last.  In either case assume the next column has been
-            // encountered (keeping in mind that there are five columns: date, application number,
-            // description, applicant and address).
+            // encountered (keeping in mind that there are five columns: received date, application
+            // number, reason, applicant and address).
 
             let column = columns.find(column => Math.abs(column.x - word.bounds.x) < ColumnAlignment);
             if (previousWord !== null && (word.bounds.x - (previousWord.bounds.x + previousWord.bounds.width) >= ColumnGap || column !== undefined)) {
-                if (isDescription) {
-                    isDescription = false;
+                if (isReceivedDate) {
+                    isReceivedDate = false;
+                    isApplicationNumber = true;
+                } else if (isApplicationNumber) {
+                    isApplicationNumber = false;
+                    isReason = true;
+                } else if (isReason) {
+                    isReason = false;
                     isApplicant = true;
                 } else if (isApplicant) {
                     isApplicant = false;
@@ -266,40 +312,65 @@ function parseLines(pdfUrl, lines) {
 
             // Add the word to the currently determined column.
 
-            if (isDescription)
-                description += word.text + " ";
-            else if (isApplicant)
+            if (isReceivedDate) {
+                receivedDate += word.text;
+                receivedDateConfidences.push(word.confidence);
+            } else if (isApplicationNumber) {
+                applicationNumber += word.text;
+                applicationNumberConfidences.push(word.confidence);
+            } else if (isReason) {
+                reason += word.text + " ";
+                reasonConfidences.push(word.confidence);
+            } else if (isApplicant) {
                 applicant += word.text + " ";
-            else if (isAddress)
+                applicantConfidences.push(word.confidence);
+            } else if (isAddress) {
                 address += word.text + " ";
+                addressConfidences.push(word.confidence);
+            }
 
             previousWord = word;
         }
 
-        address = formatAddress(address);
-        if (address.trim() === "")  // ensure that there actually is an address
-            continue;
+        // Re-format the address (making minor corrections where possible).
 
-        let receivedDate = moment(filteredLine[0].text.trim(), "D/MM/YYYY", true);
-        if (!receivedDate.isValid())
-            receivedDate = moment(filteredLine[0].text.trim(), "YYYY-MM-DDTHH:mm:ss", true);
-        
-        candidateDevelopmentApplications.push({
-            applicationNumber: filteredLine[1].text.trim(),
-            address: address.trim(),
-            reason: description.trim(),
+        let formattedAddress = formatAddress(address);
+
+        // Parse the received date so that it can be reformatted.
+
+        let parsedReceivedDate = moment(receivedDate.trim(), "D/MM/YYYY", true);
+        if (!parsedReceivedDate.isValid())
+            parsedReceivedDate = moment(receivedDate.trim(), "YYYY-MM-DDTHH:mm:ss", true);
+
+        // Derive a confidence percentage for most columns.  Note that the address is the most
+        // important column.  The other information matters a lot less (the main concern is to
+        // identify an address for which a development application has been lodged).
+
+        let addressConfidence = addressConfidences.reduce((a, b) => a + b, 0) / Math.max(1, addressConfidences.length);
+        let applicationNumberConfidence = applicationNumberConfidences.reduce((a, b) => a + b, 0) / Math.max(1, applicationNumberConfidences.length);
+        let reasonConfidence = reasonConfidences.reduce((a, b) => a + b, 0) / Math.max(1, reasonConfidences.length);
+
+        developmentApplications.push({
+            applicationNumber: applicationNumber.trim(),
+            address: formattedAddress.address.trim(),
+            reason: reason.trim(),
             informationUrl: pdfUrl,
             commentUrl: CommentUrl,
             scrapeDate: moment().format("YYYY-MM-DD"),
-            receivedDate: receivedDate.format("YYYY-MM-DD"),
-            confidence: confidence });
+            receivedDate: parsedReceivedDate.isValid() ? parsedReceivedDate.format("YYYY-MM-DD") : "",
+            hasStreet: formattedAddress.hasStreet,
+            hasRecognizedStreet: formattedAddress.hasRecognizedStreet,
+            hasRecognizedSuburb: formattedAddress.hasRecognizedSuburb,
+            addressConfidence: addressConfidence,
+            applicationNumberConfidence: applicationNumberConfidence,
+            reasonConfidence: reasonConfidence });
     }
 
     // Where the same development application number appears multiple times, choose the development
     // application with the highest confidence value.  Application numbers often appear multiple
     // times because the image is examined step by step in overlapping "sections".
 
-    return chooseDevelopmentApplications(candidateDevelopmentApplications);
+    return chooseDevelopmentApplications(developmentApplications);
 }
 
 // Determines whether the specified text represents an application number.  A format of
@@ -312,7 +383,7 @@ function isApplicationNumber(text) {
 
 // Parses an image (from a PDF file).
 
-async function parseImage(pdfUrl, image) {
+async function parseImage(pdfUrl, image, scaleFactor) {
     // The image is examined in overlapping sections to reduce the memory usage (there is currently
     // a hard limit of 512 MB when running in morph.io).
 
@@ -376,7 +447,7 @@ async function parseImage(pdfUrl, image) {
         // the image (because this significantly improves the OCR results, but also significantly
         // increases memory usage).
 
-        jimpImage.crop(0, sectionY, image.width, sectionHeight).scale(5.0, jimp.RESIZE_BEZIER);
+        jimpImage.crop(0, sectionY, image.width, sectionHeight).scale(scaleFactor, jimp.RESIZE_BEZIER);
         let imageBuffer = await (new Promise((resolve, reject) => jimpImage.getBuffer(jimp.MIME_PNG, (error, buffer) => resolve(buffer))));
 
         // Perform OCR on the image (this is extremely memory and CPU intensive).
@@ -401,14 +472,15 @@ async function parseImage(pdfUrl, image) {
                         lines.push(line.words.map(word => { return { text: word.text, confidence: word.confidence, choices: word.choices.length, bounds: { x: word.bbox.x0, y: word.bbox.y0, width: word.bbox.x1 - word.bbox.x0, height: word.bbox.y1 - word.bbox.y0 } }; }));
     }
 
-    // Analyse the lines of words to extract development application details.
+    // Analyse the lines of words to extract development application details.  Each word in a line
+    // includes a confidence percentage and a bounding box.
 
     return parseLines(pdfUrl, lines);
 }
 
 // Parses a single PDF file.
 
-async function parsePdf(database, pdfUrl, pdf) {
+async function parsePdf(database, pdfUrl, pdf, scaleFactor) {
     let imageCount = 0;
     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
         console.log(`Examining page ${pageNumber} of ${pdf.numPages} in the PDF.`);
@@ -424,7 +496,11 @@ async function parsePdf(database, pdfUrl, pdf) {
                 let image = page.objs.get(operator);
                 imageCount++;
                 console.log(`Examining image ${imageCount} in the PDF.`);
-                let developmentApplications = await parseImage(pdfUrl, image);
+                let developmentApplications = await parseImage(pdfUrl, image, scaleFactor);
+
+console.log("----------parseImage returned:");
+console.log(developmentApplications);
+console.log("----------");
 
                 // Insert the resulting development applications into the database.
 
@@ -493,6 +569,10 @@ async function main() {
 pdfUrls.splice(0, 19);
 console.log(`Selecting ${pdfUrls.length} document(s).`);
 twoPdfUrls = pdfUrls;
+twoPdfUrls = [ "http://www.prospect.sa.gov.au/webdata/resources/files/New%20DAs%2011%20September%202017%20to%2024%20September%202017.pdf" ];
+
+// If odd day then scale factor 5.0; if even day then scale factor 6.0
+let scaleFactor = 5.0;
 
     console.log("Selected the following documents to parse:");
     for (let pdfUrl of twoPdfUrls)
@@ -505,7 +585,7 @@ twoPdfUrls = pdfUrls;
 
         console.log(`Retrieving document: ${pdfUrl}`);
         let pdf = await pdfjs.getDocument({ url: pdfUrl, disableFontFace: true });
-        await parsePdf(database, pdfUrl, pdf);  // this inserts development applications into the database
+        await parsePdf(database, pdfUrl, pdf, scaleFactor);  // this inserts development applications into the database
     }
 }
 
