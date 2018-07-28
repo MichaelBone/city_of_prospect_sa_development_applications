@@ -401,14 +401,6 @@ console.log(developmentApplications);
     return chooseDevelopmentApplications(developmentApplications);
 }
 
-// Determines whether the specified text represents an application number.  A format of
-// "nnn/nnn/nnnn", "nnn/nn/nnnn" or "nnn/n/nnnn" is assumed.  For example, "030/279/2018".
-// In one case an alternative format of "nnn/nnnn/nnn" was used (so allow for this too).
-
-function isApplicationNumber(text) {
-    return /^[0-9]{3}\/[0-9]{1,3}\/[0-9]{4}$/.test(text) || /^[0-9]{3}\/[0-9]{4}\/[0-9]{1,3}$/.test(text);
-}
-
 // Parses an image (from a PDF file).
 
 async function parseImage(pdfUrl, image, scaleFactor) {
