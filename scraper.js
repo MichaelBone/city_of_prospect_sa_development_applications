@@ -348,7 +348,7 @@ function parseLines(pdfUrl, lines) {
 
         let formattedAddress = formatAddress(address);
         if (formattedAddress.address !== address)
-            console.log(`    Corrected "${addresss}" to "${formattedAddress.address}".`);
+            console.log(`    Corrected "${address}" to "${formattedAddress.address}".`);
 
         // Parse the received date so that it can be reformatted.
 
