@@ -4,6 +4,8 @@
 // Michael Bone
 // 19th July 2018
 
+"use strict";
+
 let cheerio = require("cheerio");
 let request = require("request-promise-native");
 let sqlite3 = require("sqlite3").verbose();
@@ -20,8 +22,8 @@ const CommentUrl = "mailto:admin@prospect.sa.gov.au";
 
 // Heights and widths used when recognising text in an image.
 
-const LineHeight = 15;  // the tallest line of text is approximately 15 pixels high
-const SectionHeight = LineHeight * 2;  // the text will be examined in sections this height (in pixels)
+const LineHeight = 15;  // the tallest line of text is approximately this many pixels high
+const SectionHeight = LineHeight * 2;  // the text will be examined in sections of this height (in pixels)
 const SectionStep = 5;  // the next section of text examined will be offset vertically this number of pixels
 const ColumnGap = LineHeight * 4;  // the horizontal gap between columns is mostly larger than about four line heights
 const ColumnAlignment = 10;  // text above or below within this number of horizontal pixels is considered to be aligned at the start of a column
@@ -84,26 +86,27 @@ function chooseDevelopmentApplications(developmentApplications) {
 
     let groupedApplications = {};
 
-    for (let develomentApplication of developmentApplications) {
+    for (let developmentApplication of developmentApplications) {
         // For an address to be considered valid it must at least have a street name (possibly
         // not recognised) and a have a recognised suburb name.  Enforce that the development
         // application number contains at least one slash.  And enforce that the address text
         // has reasonably high confidence (at least 70%; this is an arbitrary value).
 
-        if (!develomentApplication.hasStreet ||
-            !develomentApplication.hasRecognizedSuburb || 
+        if (!developmentApplication.hasStreet ||
+            !developmentApplication.hasRecognizedSuburb || 
             developmentApplication.applicationNumber === "" ||
             developmentApplication.applicationNumber.indexOf("/") < 0 ||
             developmentApplication.addressConfidence < 70)
             continue;  // ignore the application
 
-        let group = groupedApplications[developmentApplications.address];
-        if (group === undefined) {
-            group = [];
-            groupedApplications[developmentApplications.address] = group;
-        }
+        let group = groupedApplications[developmentApplication.address];
+        if (group === undefined)
+            groupedApplications[developmentApplication.address] = (group = []);
         group.push(developmentApplication);
     }
+
+console.log("----------groupedApplications");
+console.log(groupedApplications);
 
     // Within each group of applications with the same address select the application with the
     // highest confidence address.  However, also prefer application numbers with two slashes.
@@ -111,7 +114,7 @@ function chooseDevelopmentApplications(developmentApplications) {
     let chosenApplications = [];
 
     for (let address in groupedApplications) {
-        // Choose the application with the highest confidence address.
+        // Choose the application with the highest confidence address in each group.
 
         let group = groupedApplications[address];
         let applicationWithBestAddress = group.reduce((a, b) => (a.addressConfidence > b.addressConfidence) ? a : b);
@@ -121,11 +124,11 @@ function chooseDevelopmentApplications(developmentApplications) {
         // "077/586/2018" over "077/586l2018" (even if the first one has lower confidence).
 
         let applicationWithBestNumber = null;
-        let twoSlashApplications = group.filter(application => application.split("/").length - 1 === 2);
+        let twoSlashApplications = group.filter(application => application.applicationNumber.split("/").length - 1 === 2);
         if (twoSlashApplications.length > 0)
             applicationWithBestNumber = twoSlashApplications.reduce((a, b) => (a.applicationNumberConfidence > b.applicationNumberConfidence) ? a : b);
         else {
-            let oneSlashApplications = group.filter(application => application.split("/").length - 1 === 1);
+            let oneSlashApplications = group.filter(application => application.applicationNumber.split("/").length - 1 === 1);
             if (oneSlashApplications.length > 0)
                 applicationWithBestNumber = oneSlashApplications.reduce((a, b) => (a.applicationNumberConfidence > b.applicationNumberConfidence) ? a : b);
             else
@@ -140,6 +143,24 @@ function chooseDevelopmentApplications(developmentApplications) {
         applicationWithBestAddress.applicationNumberConfidence = applicationWithBestNumber.applicationNumberConfidence;
         chosenApplications.push(applicationWithBestAddress);
     }
+
+    // Group the applications by application number so that if there are multiple applications
+    // for the same application number the one with the highest confidence address can be selected.
+    
+    groupedApplications = {};
+    for (let developmentApplication of chosenApplications) {
+        let group = groupedApplications[developmentApplication.applicationNumber];
+        if (group === undefined)
+            groupedApplications[developmentApplication.applicationNumber] = (group = []);
+        group.push(developmentApplication);
+    }
+
+console.log("----------groupedApplications(by applicationNumber)");
+console.log(groupedApplications);
+
+    chosenApplications = [];
+    for (let applicationNumber in groupedApplications)
+        chosenApplications.push(groupedApplications[applicationNumber].reduce((a, b) => (a.addressConfidence > b.addressConfidence) ? a : b));
 
     return chosenApplications;
 }
@@ -186,19 +207,23 @@ function formatAddress(address) {
         console.log(`Changing "${suburbName}" to "${suburbNameMatch}" in "${address.trim()}".`);
     
     // Extract the street name, similarly allowing several spaces, and similarly attempting to
-    // correct the street name (allowing only a small amount of change).  Note that a threshold
-    // of 2 is used rather than 3 because otherwise "Cornu Street" of "Le Cornu Street" could
-    // possibly be changed to "Le Cane Street" (since there is a "Cane Street").
+    // correct the street name (allowing only a small amount of change).
 
     formattedAddress.hasStreet = (tokens.length > 0);
     let removedTokens = [];
 
     let streetName = null;
     let streetNameMatch = null;
-    while (tokens.length > 0 && streetNameMatch === null) {
-        streetName = tokens.join(" ");
-        streetNameMatch = didyoumean(streetName, AllStreetNames, { caseSensitive: true, returnType: "first-closest-match", thresholdType: "edit-distance", threshold: 2, trimSpace: true });
-        removedTokens.shift(tokens.shift());
+    while (tokens.length > 0) {
+        let token = tokens[0];
+        if (!/^[0-9]+$/.test(token)) {  // ignore street numbers, otherwise "6 King Street" is changed to "King Street"
+            streetName = tokens.join(" ");
+            streetNameMatch = didyoumean(streetName, AllStreetNames, { caseSensitive: false, returnType: "first-closest-match", thresholdType: "edit-distance", threshold: 3, trimSpace: true });
+            if (streetNameMatch !== null)
+                break;
+        }
+        tokens.shift();
+        removedTokens.push(token);
     }
 
     if (streetNameMatch === null) {
@@ -365,6 +390,9 @@ console.log(columns);
             applicationNumberConfidence: applicationNumberConfidence,
             reasonConfidence: reasonConfidence });
     }
+
+console.log("----------developmentApplications");
+console.log(developmentApplications);
 
     // Where the same development application number appears multiple times, choose the development
     // application with the highest confidence value.  Application numbers often appear multiple
