@@ -105,9 +105,6 @@ function chooseDevelopmentApplications(developmentApplications) {
         group.push(developmentApplication);
     }
 
-console.log("----------groupedApplications");
-console.log(groupedApplications);
-
     // Within each group of applications with the same address select the application with the
     // highest confidence address.  However, also prefer application numbers with two slashes.
 
@@ -155,9 +152,6 @@ console.log(groupedApplications);
         group.push(developmentApplication);
     }
 
-console.log("----------groupedApplications(by applicationNumber)");
-console.log(groupedApplications);
-
     chosenApplications = [];
     for (let applicationNumber in groupedApplications)
         chosenApplications.push(groupedApplications[applicationNumber].reduce((a, b) => (a.addressConfidence > b.addressConfidence) ? a : b));
@@ -196,7 +190,7 @@ function formatAddress(address) {
     let suburbNameMatch = null;
     for (let index = 0; index < 5 && suburbNameMatch === null; index++) {
         suburbName = (tokens.pop() || "") + ((index === 0) ? "" : (" " + suburbName));
-        suburbNameMatch = didyoumean(suburbName, AllSuburbNames, { caseSensitive: true, returnType: "first-closest-match", thresholdType: "edit-distance", threshold: 3, trimSpace: true });
+        suburbNameMatch = didyoumean(suburbName, AllSuburbNames, { caseSensitive: true, returnType: "first-closest-match", thresholdType: "edit-distance", threshold: 2, trimSpace: true });
     }
 
     if (suburbNameMatch === null || tokens.length === 0)
@@ -281,9 +275,6 @@ function parseLines(pdfUrl, lines) {
     let averageCount = totalCount / Math.max(1, columns.length);
     columns = columns.filter(column => column.count > averageCount / 2);  // low counts indicate low likelihood of the start of a column (arbitrarily use the average count divided by two as a threshold)
     columns.sort((column1, column2) => (column1.x > column2.x) ? 1 : ((column1.x < column2.x) ? -1 : 0));
-
-console.log("----------columns");
-console.log(columns);
 
     // Assume that there are five columns: received date, application number, reason, applicant
     // and address.
@@ -390,9 +381,6 @@ console.log(columns);
             applicationNumberConfidence: applicationNumberConfidence,
             reasonConfidence: reasonConfidence });
     }
-
-console.log("----------developmentApplications");
-console.log(developmentApplications);
 
     // Where the same development application number appears multiple times, choose the development
     // application with the highest confidence value.  Application numbers often appear multiple
@@ -518,10 +506,6 @@ async function parsePdf(database, pdfUrl, pdf, scaleFactor) {
                 console.log(`Examining image ${imageCount} in the PDF.`);
                 let developmentApplications = await parseImage(pdfUrl, image, scaleFactor);
 
-console.log("----------parseImage returned:");
-console.log(developmentApplications);
-console.log("----------");
-
                 // Insert the resulting development applications into the database.
 
                 for (let developmentApplication of developmentApplications)
@@ -586,10 +570,8 @@ async function main() {
             twoPdfUrls = [ pdfUrls[getRandom(1, pdfUrls.length)], pdfUrls[0] ];
     }
 
-pdfUrls.splice(0, 19);
 console.log(`Selecting ${pdfUrls.length} document(s).`);
 twoPdfUrls = pdfUrls;
-twoPdfUrls = [ "http://www.prospect.sa.gov.au/webdata/resources/files/New%20DAs%2011%20September%202017%20to%2024%20September%202017.pdf" ];
 
 // If odd day then scale factor 5.0; if even day then scale factor 6.0
 let scaleFactor = 5.0;
