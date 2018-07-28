@@ -208,7 +208,7 @@ function formatAddress(address) {
     let streetNameMatch = null;
     while (tokens.length > 0) {
         let token = tokens[0];
-        if (!/^[0-9]+$/.test(token)) {  // ignore street numbers, otherwise "6 King Street" is changed to "King Street"
+        if (!/^[0-9]+$/.test(token) && token.length >= 2) {  // ignore street numbers, otherwise "6 King Street" is changed to "King Street"; ignore a single character such as "S" (because it is probably, really the digit "5")
             streetName = tokens.join(" ");
             streetNameMatch = didyoumean(streetName, AllStreetNames, { caseSensitive: false, returnType: "first-closest-match", thresholdType: "edit-distance", threshold: 3, trimSpace: true });
             if (streetNameMatch !== null)
@@ -567,6 +567,7 @@ async function main() {
             twoPdfUrls = [ pdfUrls[getRandom(1, pdfUrls.length)], pdfUrls[0] ];
     }
 
+pdfUrls.shift();
 console.log(`Selecting ${pdfUrls.length} document(s).`);
 twoPdfUrls = pdfUrls;
 
