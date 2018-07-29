@@ -240,7 +240,6 @@ function formatAddress(address) {
 // address columns).
 
 function parseLines(pdfUrl, lines, scaleFactor) {
-    
     // Determine where the received date, application number, reason, applicant and address are
     // located on each line.  This is partly determined by looking for the sizable gaps between
     // columns.
@@ -288,13 +287,8 @@ function parseLines(pdfUrl, lines, scaleFactor) {
         let applicantConfidences = [];
         let address = "";
         let addressConfidences = [];
-
-        let isReceivedDate = true;
-        let isApplicationNumber = false;
-        let isReason = false;
-        let isApplicant = false;
-        let isAddress = false;
         let previousWord = null;
+        let columnIndex = 0;
 
         // Group the words from the line into the five columns.
 
@@ -305,39 +299,26 @@ function parseLines(pdfUrl, lines, scaleFactor) {
             // the next column has been encountered (keeping in mind that there are five columns:
             // received date, application number, reason, applicant and address).
 
-            let column = columns.find(column => Math.abs(column.x - word.bounds.x) < ColumnAlignment * scaleFactor);
-            if (previousWord !== null && column !== undefined) {
-                if (isReceivedDate) {
-                    isReceivedDate = false;
-                    isApplicationNumber = true;
-                } else if (isApplicationNumber) {
-                    isApplicationNumber = false;
-                    isReason = true;
-                } else if (isReason) {
-                    isReason = false;
-                    isApplicant = true;
-                } else if (isApplicant) {
-                    isApplicant = false;
-                    isAddress = true;
-                }
-            }
+            let findColumnIndex = columns.findIndex(column => Math.abs(column.x - word.bounds.x) < ColumnAlignment * scaleFactor);
+            if (previousWord !== null && findColumnIndex >= 0)
+                columnIndex = findColumnIndex;
 
             // Add the word to the currently determined column.
 
-            if (isReceivedDate) {
+            if (columnIndex === 0) {
                 receivedDate += word.text;
                 receivedDateConfidences.push(word.confidence);
-            } else if (isApplicationNumber) {
+            } else if (columnIndex === 1) {
                 applicationNumber += word.text;
                 applicationNumberConfidences.push(word.confidence);
-            } else if (isReason) {
-                reason += ((reason === null) ? "" : " ") + word.text;
+            } else if (columnIndex === 2) {
+                reason += ((reason === "") ? "" : " ") + word.text;
                 reasonConfidences.push(word.confidence);
-            } else if (isApplicant) {
-                applicant += ((applicant === null) ? "" : " ") + word.text;
+            } else if (columnIndex === 3) {
+                applicant += ((applicant === "") ? "" : " ") + word.text;
                 applicantConfidences.push(word.confidence);
-            } else if (isAddress) {
-                address += ((address === null) ? "" : " ") + word.text;
+            } else if (columnIndex === 4) {
+                address += ((address === "") ? "" : " ") + word.text;
                 addressConfidences.push(word.confidence);
             }
 
@@ -379,6 +360,8 @@ function parseLines(pdfUrl, lines, scaleFactor) {
             applicationNumberConfidence: applicationNumberConfidence,
             reasonConfidence: reasonConfidence });
     }
+
+console.log(developmentApplications);
 
     // Where the same development application number appears multiple times, choose the development
     // application with the highest confidence value.  Application numbers often appear multiple
@@ -567,10 +550,9 @@ async function main() {
     }
 
 //pdfUrls.shift();
-pdfUrls.splice(0, 4);
+pdfUrls.splice(0, 12);
 console.log(`Selecting ${pdfUrls.length} document(s).`);
 twoPdfUrls = pdfUrls;
-// twoPdfUrls = [ "http://www.prospect.sa.gov.au/webdata/resources/files/New%20DAs%207%20May%202018%20to%2020%20May%202018.pdf" ];
 
 // If odd day then scale factor 5.0; if even day then scale factor 6.0
 let scaleFactor = 5.0;
