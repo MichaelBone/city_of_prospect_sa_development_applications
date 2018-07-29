@@ -25,7 +25,7 @@ const CommentUrl = "mailto:admin@prospect.sa.gov.au";
 const LineHeight = 15;  // the tallest line of text is approximately this many pixels high
 const SectionHeight = LineHeight * 2;  // the text will be examined in sections of this height (in pixels)
 const SectionStep = 5;  // the next section of text examined will be offset vertically this number of pixels
-const ColumnGap = LineHeight * 2;  // the horizontal gap between columns is mostly larger than about two line heights
+const ColumnGap = 15;  // the horizontal gap between columns is asseumed to be larger than about 15 pixels
 const ColumnAlignment = 10;  // text above or below within this number of horizontal pixels is considered to be aligned at the start of a column
 
 // All street and suburb names (used when correcting addresses).
@@ -361,8 +361,6 @@ function parseLines(pdfUrl, lines, scaleFactor) {
             reasonConfidence: reasonConfidence });
     }
 
-console.log(developmentApplications);
-
     // Where the same development application number appears multiple times, choose the development
     // application with the highest confidence value.  Application numbers often appear multiple
     // times because the image is examined step by step in overlapping "sections".
@@ -550,9 +548,10 @@ async function main() {
     }
 
 //pdfUrls.shift();
-pdfUrls.splice(0, 12);
+pdfUrls.splice(0, 15);
 console.log(`Selecting ${pdfUrls.length} document(s).`);
 twoPdfUrls = pdfUrls;
+// twoPdfUrls = [ "http://www.prospect.sa.gov.au/webdata/resources/files/New%20DAs%2020%20November%202017%20to%203%20December%202017.docx.pdf" ];
 
 // If odd day then scale factor 5.0; if even day then scale factor 6.0
 let scaleFactor = 5.0;
