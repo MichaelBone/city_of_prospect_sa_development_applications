@@ -25,7 +25,7 @@ const CommentUrl = "mailto:admin@prospect.sa.gov.au";
 const LineHeight = 15;  // the tallest line of text is approximately this many pixels high
 const SectionHeight = LineHeight * 2;  // the text will be examined in sections of this height (in pixels)
 const SectionStep = 5;  // the next section of text examined will be offset vertically this number of pixels
-const ColumnGap = LineHeight * 4;  // the horizontal gap between columns is mostly larger than about four line heights
+const ColumnGap = LineHeight * 2;  // the horizontal gap between columns is mostly larger than about two line heights
 const ColumnAlignment = 10;  // text above or below within this number of horizontal pixels is considered to be aligned at the start of a column
 
 // All street and suburb names (used when correcting addresses).
@@ -66,9 +66,9 @@ async function insertRow(database, developmentApplication) {
                 reject(error);
             } else {
                 if (this.changes > 0)
-                    console.log(`    Application \"${developmentApplication.applicationNumber}\" ${developmentApplication.applicationNumberConfidence}% with address \"${developmentApplication.address}\" ${developmentApplication.addressConfidence}% and reason \"${developmentApplication.reason}\" ${developmentApplication.reasonConfidence}% was inserted into the database.`);
+                    console.log(`    Application \"${developmentApplication.applicationNumber}\" with address \"${developmentApplication.address}\" and reason \"${developmentApplication.reason}\" was inserted into the database.`);
                 else
-                    console.log(`    Application \"${developmentApplication.applicationNumber}\" ${developmentApplication.applicationNumberConfidence}% with address \"${developmentApplication.address}\" ${developmentApplication.addressConfidence}% and reason \"${developmentApplication.reason}\" ${developmentApplication.reasonConfidence}% was already present in the database.`);
+                    console.log(`    Application \"${developmentApplication.applicationNumber}\" with address \"${developmentApplication.address}\" and reason \"${developmentApplication.reason}\" was already present in the database.`);
 
                 sqlStatement.finalize();  // releases any locks
                 resolve(row);
@@ -90,13 +90,13 @@ function chooseDevelopmentApplications(developmentApplications) {
         // For an address to be considered valid it must at least have a street name (possibly
         // not recognised) and a have a recognised suburb name.  Enforce that the development
         // application number contains at least one slash.  And enforce that the address text
-        // has reasonably high confidence (at least 70%; this is an arbitrary value).
+        // has reasonably high confidence (at least 75%; this is an arbitrary value).
 
         if (!developmentApplication.hasStreet ||
             !developmentApplication.hasRecognizedSuburb || 
             developmentApplication.applicationNumber === "" ||
             developmentApplication.applicationNumber.indexOf("/") < 0 ||
-            developmentApplication.addressConfidence < 70)
+            developmentApplication.addressConfidence < 75)
             continue;  // ignore the application
 
         let group = groupedApplications[developmentApplication.address];
@@ -208,7 +208,7 @@ function formatAddress(address) {
     let streetNameMatch = null;
     while (tokens.length > 0) {
         let token = tokens[0];
-        if (!/^[0-9]+$/.test(token) && token.length >= 2) {  // ignore street numbers, otherwise "6 King Street" is changed to "King Street"; ignore a single character such as "S" (because it is probably, really the digit "5")
+        if (!/^[0-9]+$/.test(token) && !/^[0-9][A-Za-z]$/.test(token) && token.length >= 2) {  // ignore street numbers, otherwise "6 King Street" is changed to "King Street"; ignore a single character such as "S" (because it is probably, really the digit "5")
             streetName = tokens.join(" ");
             streetNameMatch = didyoumean(streetName, AllStreetNames, { caseSensitive: false, returnType: "first-closest-match", thresholdType: "edit-distance", threshold: 3, trimSpace: true });
             if (streetNameMatch !== null)
@@ -239,7 +239,7 @@ function formatAddress(address) {
 // logic here also performs partitioning of the text into columns (for example, the reason and
 // address columns).
 
-function parseLines(pdfUrl, lines) {
+function parseLines(pdfUrl, lines, scaleFactor) {
     // Determine where the received date, application number, reason, applicant and address are
     // located on each line.  This is partly determined by looking for the sizable gaps between
     // columns.
@@ -248,12 +248,12 @@ function parseLines(pdfUrl, lines) {
     for (let line of lines) {
         let previousWord = null;
         for (let word of line) {
-            if (previousWord === null || word.bounds.x - (previousWord.bounds.x + previousWord.bounds.width) >= ColumnGap) {
+            if (previousWord === null || word.bounds.x - (previousWord.bounds.x + previousWord.bounds.width) >= ColumnGap * scaleFactor) {
                 // Found the potential start of another column (count how many times this occurs
                 // at the current X co-ordinate; the more times the more likely it is that this
                 // is actually the start of a column).
 
-                let closestColumn = columns.find(column => Math.abs(word.bounds.x - column.x) < ColumnAlignment);
+                let closestColumn = columns.find(column => Math.abs(word.bounds.x - column.x) < ColumnAlignment * scaleFactor);
                 if (closestColumn !== undefined)
                     closestColumn.count++;
                 else
@@ -271,7 +271,7 @@ function parseLines(pdfUrl, lines) {
     let averageCount = totalCount / Math.max(1, columns.length);
     columns = columns.filter(column => column.count > averageCount / 2);  // low counts indicate low likelihood of the start of a column (arbitrarily use the average count divided by two as a threshold)
     columns.sort((column1, column2) => (column1.x > column2.x) ? 1 : ((column1.x < column2.x) ? -1 : 0));
-
+    
     // Assume that there are five columns: received date, application number, reason, applicant
     // and address.
 
@@ -300,13 +300,12 @@ function parseLines(pdfUrl, lines) {
         for (let index = 0; index < line.length; index++) {
             let word = line[index];
 
-            // Determine if this word lines up with the start of a column, or if there is a sizable
-            // gap between this word and the last.  In either case assume the next column has been
-            // encountered (keeping in mind that there are five columns: received date, application
-            // number, reason, applicant and address).
+            // Determine if this word lines up with the start of a column, which indicates that
+            // the next column has been encountered (keeping in mind that there are five columns:
+            // received date, application number, reason, applicant and address).
 
-            let column = columns.find(column => Math.abs(column.x - word.bounds.x) < ColumnAlignment);
-            if (previousWord !== null && (word.bounds.x - (previousWord.bounds.x + previousWord.bounds.width) >= ColumnGap || column !== undefined)) {
+            let column = columns.find(column => Math.abs(column.x - word.bounds.x) < ColumnAlignment * scaleFactor);
+            if (previousWord !== null && column !== undefined) {
                 if (isReceivedDate) {
                     isReceivedDate = false;
                     isApplicationNumber = true;
@@ -331,13 +330,13 @@ function parseLines(pdfUrl, lines) {
                 applicationNumber += word.text;
                 applicationNumberConfidences.push(word.confidence);
             } else if (isReason) {
-                reason += word.text + " ";
+                reason += ((reason === null) ? "" : " ") + word.text;
                 reasonConfidences.push(word.confidence);
             } else if (isApplicant) {
-                applicant += word.text + " ";
+                applicant += ((applicant === null) ? "" : " ") + word.text;
                 applicantConfidences.push(word.confidence);
             } else if (isAddress) {
-                address += word.text + " ";
+                address += ((address === null) ? "" : " ") + word.text;
                 addressConfidences.push(word.confidence);
             }
 
@@ -394,7 +393,7 @@ async function parseImage(pdfUrl, image, scaleFactor) {
     // a hard limit of 512 MB when running in morph.io).
 
     let lines = [];
-
+    
     console.log(`    Image x is [0..${image.width - 1}], y is [0..${image.height - 1}].`);
     for (let sectionY = 0; sectionY < image.height; sectionY += SectionStep) {
         let sectionHeight = Math.min(image.height - sectionY, SectionHeight);
@@ -463,7 +462,6 @@ async function parseImage(pdfUrl, image, scaleFactor) {
         // Attempt to avoid reaching 512 MB memory usage (this will otherwise result in the current
         // process being terminated by morph.io).
 
-        let memoryUsage = process.memoryUsage();
         tesseract.terminate();
         if (global.gc)
             global.gc();
@@ -480,7 +478,7 @@ async function parseImage(pdfUrl, image, scaleFactor) {
     // Analyse the lines of words to extract development application details.  Each word in a line
     // includes a confidence percentage and a bounding box.
 
-    return parseLines(pdfUrl, lines);
+    return parseLines(pdfUrl, lines, scaleFactor);
 }
 
 // Parses a single PDF file.
@@ -567,9 +565,10 @@ async function main() {
             twoPdfUrls = [ pdfUrls[getRandom(1, pdfUrls.length)], pdfUrls[0] ];
     }
 
-pdfUrls.shift();
+//pdfUrls.shift();
 console.log(`Selecting ${pdfUrls.length} document(s).`);
 twoPdfUrls = pdfUrls;
+//twoPdfUrls = [ "http://www.prospect.sa.gov.au/webdata/resources/files/New%20DAs%2018%20December%202017%20to%2031%20December%202017.pdf" ];
 
 // If odd day then scale factor 5.0; if even day then scale factor 6.0
 let scaleFactor = 5.0;
