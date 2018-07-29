@@ -168,7 +168,7 @@ function chooseDevelopmentApplications(developmentApplications) {
 //
 //     <StreetNumber> may contain digits, dashes, slashes (and sometimes spaces)
 //     <StreetName> is in mixed case and may contain spaces
-//     <SuburbName> is in all uppercase and may contain spaces
+//     <SuburbName> is usually all uppercase (occasionally mixed case) and may contain spaces
 //     <StateAbbreviation> is in all uppercase and may not contain spaces
 //     <PostCode> is four digits and may not contain spaces
 //
@@ -190,7 +190,7 @@ function formatAddress(address) {
     let suburbNameMatch = null;
     for (let index = 0; index < 5 && suburbNameMatch === null; index++) {
         suburbName = (tokens.pop() || "") + ((index === 0) ? "" : (" " + suburbName));
-        suburbNameMatch = didyoumean(suburbName, AllSuburbNames, { caseSensitive: true, returnType: "first-closest-match", thresholdType: "edit-distance", threshold: 2, trimSpace: true });
+        suburbNameMatch = didyoumean(suburbName, AllSuburbNames, { caseSensitive: false, returnType: "first-closest-match", thresholdType: "edit-distance", threshold: 2, trimSpace: true });
     }
 
     if (suburbNameMatch === null || tokens.length === 0)
@@ -240,6 +240,7 @@ function formatAddress(address) {
 // address columns).
 
 function parseLines(pdfUrl, lines, scaleFactor) {
+    
     // Determine where the received date, application number, reason, applicant and address are
     // located on each line.  This is partly determined by looking for the sizable gaps between
     // columns.
@@ -393,7 +394,7 @@ async function parseImage(pdfUrl, image, scaleFactor) {
     // a hard limit of 512 MB when running in morph.io).
 
     let lines = [];
-    
+
     console.log(`    Image x is [0..${image.width - 1}], y is [0..${image.height - 1}].`);
     for (let sectionY = 0; sectionY < image.height; sectionY += SectionStep) {
         let sectionHeight = Math.min(image.height - sectionY, SectionHeight);
@@ -566,9 +567,10 @@ async function main() {
     }
 
 //pdfUrls.shift();
+pdfUrls.splice(0, 4);
 console.log(`Selecting ${pdfUrls.length} document(s).`);
 twoPdfUrls = pdfUrls;
-//twoPdfUrls = [ "http://www.prospect.sa.gov.au/webdata/resources/files/New%20DAs%2018%20December%202017%20to%2031%20December%202017.pdf" ];
+// twoPdfUrls = [ "http://www.prospect.sa.gov.au/webdata/resources/files/New%20DAs%207%20May%202018%20to%2020%20May%202018.pdf" ];
 
 // If odd day then scale factor 5.0; if even day then scale factor 6.0
 let scaleFactor = 5.0;
