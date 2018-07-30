@@ -25,7 +25,7 @@ const CommentUrl = "mailto:admin@prospect.sa.gov.au";
 const LineHeight = 15;  // the tallest line of text is approximately this many pixels high
 const SectionHeight = LineHeight * 2;  // the text will be examined in sections of this height (in pixels)
 const SectionStep = 5;  // the next section of text examined will be offset vertically this number of pixels
-const ColumnGap = 15;  // the horizontal gap between columns is asseumed to be larger than about 15 pixels
+const ColumnGap = 15;  // the horizontal gap between columns is assumed to be larger than about 15 pixels
 const ColumnAlignment = 10;  // text above or below within this number of horizontal pixels is considered to be aligned at the start of a column
 
 // All street and suburb names (used when correcting addresses).
@@ -156,6 +156,8 @@ function chooseDevelopmentApplications(developmentApplications) {
     for (let applicationNumber in groupedApplications)
         chosenApplications.push(groupedApplications[applicationNumber].reduce((a, b) => (a.addressConfidence > b.addressConfidence) ? a : b));
 
+console.log(chosenApplications);
+
     return chosenApplications;
 }
 
@@ -234,44 +236,74 @@ function formatAddress(address) {
     return formattedAddress;
 }
 
+// Determine the starting X co-ordering of each column.
+
+function findColumns(lines, scaleFactor) {
+    // Start with a large column gap.  Continue to reduce this until exactly five columns are
+    // found.  This then caters for some documents where the column gap is very narrow.
+
+    for (let columnGap = ColumnGap; columnGap >= 1; columnGap--) {
+        // Determine where the received date, application number, reason, applicant and address are
+        // located on each line.  This is partly determined by looking for the sizable gaps between
+        // columns.
+
+        let columns = [];
+        for (let line of lines) {
+            let previousWord = null;
+            for (let word of line) {
+                if (previousWord === null || word.bounds.x - (previousWord.bounds.x + previousWord.bounds.width) >= columnGap * scaleFactor) {
+                    // Found the potential start of another column (count how many times this occurs
+                    // at the current X co-ordinate; the more times the more likely it is that this
+                    // is actually the start of a column).
+
+                    let closestColumn = columns.find(column => Math.abs(word.bounds.x - column.x) < ColumnAlignment * scaleFactor);
+                    if (closestColumn !== undefined)
+                        closestColumn.count++;
+                    else
+                        columns.push({ x: word.bounds.x, count: 1 });
+                }
+                previousWord = word;
+            }
+        }
+        
+        // Ignore columns that have low counts.
+
+        let totalCount = 0;
+        for (let column of columns)
+            totalCount += column.count;
+        let averageCount = totalCount / 5;  // assume there are five "major" columns
+        columns = columns.filter(column => column.count > averageCount / 2);  // low counts indicate low likelihood of the start of a column (arbitrarily use the average count divided by two as a threshold)
+        columns.sort((column1, column2) => (column1.x > column2.x) ? 1 : ((column1.x < column2.x) ? -1 : 0));
+
+        // Check if five columns have been found.
+
+console.log(`columnGap=${columnGap} columns.length=${columns.length}.`);
+        if (columns.length === 5)
+            return columns;
+    }
+
+    return null;
+}
+
 // Parses the lines of words.  Each word in a line consists of a bounding box, the text that
 // exists in that bounding box and the confidence information determined by tesseract.js.  The
 // logic here also performs partitioning of the text into columns (for example, the reason and
 // address columns).
 
 function parseLines(pdfUrl, lines, scaleFactor) {
-    // Determine where the received date, application number, reason, applicant and address are
-    // located on each line.  This is partly determined by looking for the sizable gaps between
-    // columns.
+    // Determine where the received date, application number, reason, applicant and address
+    // start on each line.
 
-    let columns = [];
-    for (let line of lines) {
-        let previousWord = null;
-        for (let word of line) {
-            if (previousWord === null || word.bounds.x - (previousWord.bounds.x + previousWord.bounds.width) >= ColumnGap * scaleFactor) {
-                // Found the potential start of another column (count how many times this occurs
-                // at the current X co-ordinate; the more times the more likely it is that this
-                // is actually the start of a column).
+console.log(JSON.stringify(lines));
 
-                let closestColumn = columns.find(column => Math.abs(word.bounds.x - column.x) < ColumnAlignment * scaleFactor);
-                if (closestColumn !== undefined)
-                    closestColumn.count++;
-                else
-                    columns.push({ x: word.bounds.x, count: 1 });
-            }
-            previousWord = word;
-        }
+    let columns = findColumns(lines, scaleFactor);
+    if (columns === null) {
+        console.log("No application numbers were parsed from the current image in the document because could not find five columns.");
+        return [];
     }
-    
-    // Ignore columns that have low counts.
 
-    let totalCount = 0;
-    for (let column of columns)
-        totalCount += column.count;
-    let averageCount = totalCount / Math.max(1, columns.length);
-    columns = columns.filter(column => column.count > averageCount / 2);  // low counts indicate low likelihood of the start of a column (arbitrarily use the average count divided by two as a threshold)
-    columns.sort((column1, column2) => (column1.x > column2.x) ? 1 : ((column1.x < column2.x) ? -1 : 0));
-    
+console.log(columns);
+
     // Assume that there are five columns: received date, application number, reason, applicant
     // and address.
 
@@ -279,14 +311,20 @@ function parseLines(pdfUrl, lines, scaleFactor) {
     for (let line of lines) {
         let receivedDate = "";
         let receivedDateConfidences = [];
+        let receivedDateY = null;
         let applicationNumber = "";
         let applicationNumberConfidences = [];
+        let applicationNumberY = null;
         let reason = "";
         let reasonConfidences = [];
+        let reasonY = null;
         let applicant = "";  // this is currently not used (but extracted for completeness)
         let applicantConfidences = [];
+        let applicantY = null;
         let address = "";
         let addressConfidences = [];
+        let addressY = null;
+
         let previousWord = null;
         let columnIndex = 0;
 
@@ -300,8 +338,19 @@ function parseLines(pdfUrl, lines, scaleFactor) {
             // received date, application number, reason, applicant and address).
 
             let findColumnIndex = columns.findIndex(column => Math.abs(column.x - word.bounds.x) < ColumnAlignment * scaleFactor);
-            if (previousWord !== null && findColumnIndex >= 0)
+            if (previousWord !== null && findColumnIndex >= 0) {
                 columnIndex = findColumnIndex;
+                if (columnIndex === 0)
+                    receivedDateY = word.bounds.y;
+                else if (columnIndex === 1)
+                    applicationNumberY = word.bounds.y;
+                else if (columnIndex === 2)
+                    reasonY = word.bounds.y;
+                else if (columnIndex === 3)
+                    applicantY = word.bounds.y;
+                else if (columnIndex === 4)
+                    addressY = word.bounds.y;
+            }
 
             // Add the word to the currently determined column.
 
@@ -328,8 +377,8 @@ function parseLines(pdfUrl, lines, scaleFactor) {
         // Re-format the address (making minor corrections where possible).
 
         let formattedAddress = formatAddress(address);
-        if (formattedAddress.address !== address)
-            console.log(`    Corrected "${address}" to "${formattedAddress.address}".`);
+        // if (formattedAddress.address !== address)
+        //     console.log(`    Corrected "${address}" to "${formattedAddress.address}".`);
 
         // Parse the received date so that it can be reformatted.
 
@@ -344,6 +393,11 @@ function parseLines(pdfUrl, lines, scaleFactor) {
         let addressConfidence = addressConfidences.reduce((a, b) => a + b, 0) / Math.max(1, addressConfidences.length);
         let applicationNumberConfidence = applicationNumberConfidences.reduce((a, b) => a + b, 0) / Math.max(1, applicationNumberConfidences.length);
         let reasonConfidence = reasonConfidences.reduce((a, b) => a + b, 0) / Math.max(1, reasonConfidences.length);
+
+let receivedDateConfidence = receivedDateConfidences.reduce((a, b) => a + b, 0) / Math.max(1, receivedDateConfidences.length);
+let applicantConfidence = applicantConfidences.reduce((a, b) => a + b, 0) / Math.max(1, applicantConfidences.length);
+if (formattedAddress.hasStreet && formattedAddress.hasRecognizedSuburb)
+    console.log(`${receivedDate.trim()}[${Math.round(receivedDateConfidence)}% ${receivedDateY}] ${applicationNumber.trim()}[${Math.round(applicationNumberConfidence)}% ${applicationNumberY}] ${reason.trim()}[${Math.round(reasonConfidence)}% ${reasonY}] ${applicant.trim()}[${Math.round(applicantConfidence)}% ${applicantY}] ${formattedAddress.address.trim()}[${Math.round(addressConfidence)}% ${addressY}]`);
 
         developmentApplications.push({
             applicationNumber: applicationNumber.trim(),
@@ -376,10 +430,12 @@ async function parseImage(pdfUrl, image, scaleFactor) {
 
     let lines = [];
 
+// return parseLines(pdfUrl, lines, scaleFactor);
+
     console.log(`    Image x is [0..${image.width - 1}], y is [0..${image.height - 1}].`);
     for (let sectionY = 0; sectionY < image.height; sectionY += SectionStep) {
         let sectionHeight = Math.min(image.height - sectionY, SectionHeight);
-        console.log(`    Examining y in [${sectionY}..${sectionY + sectionHeight - 1}] of [0..${image.height - 1}].`)
+        // console.log(`    Examining y in [${sectionY}..${sectionY + sectionHeight - 1}] of [0..${image.height - 1}].`)
 
         // Convert the image data into a format that can be used by jimp.
 
@@ -454,7 +510,7 @@ async function parseImage(pdfUrl, image, scaleFactor) {
             for (let block of result.blocks)
                 for (let paragraph of block.paragraphs)
                     for (let line of paragraph.lines)
-                        lines.push(line.words.map(word => { return { text: word.text, confidence: word.confidence, choices: word.choices.length, bounds: { x: word.bbox.x0, y: word.bbox.y0, width: word.bbox.x1 - word.bbox.x0, height: word.bbox.y1 - word.bbox.y0 } }; }));
+                        lines.push(line.words.map(word => { return { text: word.text, confidence: word.confidence, choices: word.choices.length, bounds: { x: word.bbox.x0, y: sectionY + word.bbox.y0, width: word.bbox.x1 - word.bbox.x0, height: word.bbox.y1 - word.bbox.y0 } }; }));
     }
 
     // Analyse the lines of words to extract development application details.  Each word in a line
@@ -547,11 +603,11 @@ async function main() {
             twoPdfUrls = [ pdfUrls[getRandom(1, pdfUrls.length)], pdfUrls[0] ];
     }
 
-//pdfUrls.shift();
-pdfUrls.splice(0, 15);
+// pdfUrls.shift();
+// pdfUrls.splice(0, 15);
 console.log(`Selecting ${pdfUrls.length} document(s).`);
 twoPdfUrls = pdfUrls;
-// twoPdfUrls = [ "http://www.prospect.sa.gov.au/webdata/resources/files/New%20DAs%2020%20November%202017%20to%203%20December%202017.docx.pdf" ];
+twoPdfUrls = [ "http://www.prospect.sa.gov.au/webdata/resources/files/New%20DAs%2018%20June%202018%20to%201%20July%202018.pdf" ];
 
 // If odd day then scale factor 5.0; if even day then scale factor 6.0
 let scaleFactor = 5.0;
