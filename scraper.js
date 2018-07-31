@@ -27,6 +27,7 @@ const SectionHeight = LineHeight * 2;  // the text will be examined in sections 
 const SectionStep = 5;  // the next section of text examined will be offset vertically this number of pixels
 const ColumnGap = 15;  // the horizontal gap between columns is assumed to be larger than about 15 pixels
 const ColumnAlignment = 10;  // text above or below within this number of horizontal pixels is considered to be aligned at the start of a column
+const LineAlignment = 5;  // text within this number of pixels vertically is considered to be on the same line
 
 // All street and suburb names (used when correcting addresses).
 
@@ -80,7 +81,51 @@ async function insertRow(database, developmentApplication) {
 // Chooses the development applications that have the highest confidence value (prioritising
 // high confidence addresses).
 
-function chooseDevelopmentApplications(developmentApplications) {
+function chooseDevelopmentApplications(developmentApplications, scaleFactor) {
+    // Group together development applications that have similar Y co-ordinates (the same
+    // development application appears multiple times because the image is examined vertically
+    // in overlapping steps).
+
+    let groups = [];
+    for (let application of developmentApplications) {
+        let group = groups.find(group => Math.abs(group.y - application.y) < LineAlignment * scaleFactor);
+        if (group === undefined) {
+            group = { y: application.y, application: [] };
+            groups.push(group);
+        }
+        group.application.push(application);
+    }
+
+    // Within each group choose the text in each column that has the highest confidence.
+
+    let chosenApplications = [];
+    for (let group of groups) {
+        let chosenApplication = null;
+        for (let application of group.applications) {
+            if (chosenApplication === null)
+                chosenApplication = application;
+            else {
+                if (application.applicationNumberConfidence > chosenApplication.applicationNumberConfidence) {
+                    chosenApplication.applicationNumber = application.applicationNumber;
+                    chosenApplication.applicationNumberConfidence = application.applicationNumberConfidence;
+                } else if (application.reasonConfidence > chosenApplication.reasonConfidence) {
+                    chosenApplication.reason = application.reason;
+                    chosenApplication.reasonConfidence = application.reasonConfidence;
+                } else if (application.addressConfidence > chosenApplication.addressConfidence) {
+                    chosenApplication.address = application.address;
+                    chosenApplication.addressConfidence = application.addressConfidence;
+                }
+            }
+        }
+        chosenApplications.push(chosenApplication);
+    }
+
+    // Merge any development applications have the same application number.
+
+    console.log(chosenApplications);
+    console.log(chosenApplications.length);
+    return chosenApplications;
+
     // Group the development applications by address (since this is the most important
     // information).
 
@@ -273,21 +318,20 @@ console.log(`columnGap=${columnGap} columns.length=${columns.length}.`);
     return null;
 }
 
-// Determine if the development application is valid (or should be ignored).
+// Merge an array of rows into a single row by choosing the cells in each column with the highest
+// confidence.
 
-function isValidApplication(developmentApplication) {
-    // For an address to be considered valid it must at least have a street name (possibly not
-    // recognised) and a have a recognised suburb name.  Enforce that the development application
-    // number contains at least one slash.  Enforce that the address text has reasonably high
-    // confidence (at least 75%; this is an arbitrary value).  And that a Y co-ordinate has been
-    // determined.
-
-    return developmentApplication.hasStreet &&
-        developmentApplication.hasRecognizedSuburb &&
-        developmentApplication.applicationNumber !== "" &&
-        developmentApplication.applicationNumber.indexOf("/") >= 0 &&
-        developmentApplication.addressConfidence >= 75 &&
-        developmentApplication.y !== null;
+function mergeRows(rows) {
+    let mergedRow = rows[0];
+    for (let rowIndex = 1; rowIndex < rows.length; rowIndex++) {
+        for (let columnIndex = 0; columnIndex < mergedRow.length; columnIndex++) {
+            if (rows[rowIndex][columnIndex].confidence > mergedRow[columnIndex].confidence) {
+                mergedRow[columnIndex].text = rows[rowIndex][columnIndex].text;
+                mergedRow[columnIndex].confidence = rows[rowIndex][columnIndex].confidence;
+            }
+        }
+    }
+    return mergedRow;
 }
 
 // Parses the lines of words.  Each word in a line consists of a bounding box, the text that
@@ -312,15 +356,15 @@ console.log(columns);
     // Assume that there are five columns: received date, application number, reason, applicant
     // and address.
 
-    let developmentApplications = [];
+    let rows = [];
     for (let line of lines) {
         // Initialise the object which will contain the results of parsing the line.
 
-        let lineColumns = columns.map(() => { return { y: null, texts: [], text: "", confidences: [], confidence: 0 }; });
+        let row = columns.map(() => { return { y: null, texts: [], text: "", confidences: [], confidence: 0 }; });
 
         // Group the words from the line into the five columns.
 
-        let lineColumn = null;
+        let cell = null;
         for (let word of line) {
             // Determine if this word lines up with the start of a column, which indicates that
             // the next column has been encountered (keeping in mind that there are five columns:
@@ -328,76 +372,115 @@ console.log(columns);
 
             let columnIndex = columns.findIndex(column => Math.abs(column.x - word.bounds.x) < ColumnAlignment * scaleFactor);
             if (columnIndex >= 0) {
-                lineColumn = lineColumns[columnIndex];
-                lineColumn.y = word.bounds.y;
+                cell = row[columnIndex];
+                cell.y = word.bounds.y;
             }
 
             // Add the word to the currently determined column.
 
-            if (lineColumn !== null) {
-                lineColumn.texts.push(word.text);
-                lineColumn.confidences.push(word.confidence);
+            if (cell !== null) {
+                cell.texts.push(word.text);
+                cell.confidences.push(word.confidence);
             }
         }
 
         // Aggregate the data gathered for each column.
 
-        for (let lineColumn of lineColumns)
-            lineColumn.confidence = lineColumn.confidences.reduce((a, b) => a + b, 0) / Math.max(1, lineColumn.confidences.length);  // average confidence
+        for (let cell of row)
+            cell.confidence = cell.confidences.reduce((a, b) => a + b, 0) / Math.max(1, cell.confidences.length);  // average confidence
 
-        let [ receivedDate, applicationNumber, reason, applicant, address ] = lineColumns;
+        // Join together the words into text for each column of the row.
 
-        receivedDate.text = receivedDate.texts.join("").trim();
-        applicationNumber.text = applicationNumber.texts.join("").trim();
-        applicant.text = applicant.texts.join(" ").trim();
-        reason.text = reason.texts.join(" ").trim();
-        address.text = address.texts.join(" ").trim();
+        row[0].text = row[0].texts.join("").trim();  // received date
+        row[1].text = row[1].texts.join("").trim();  // application number
+        row[2].text = row[2].texts.join(" ").trim();  // applicant (not currently used)
+        row[3].text = row[3].texts.join(" ").trim();  // reason
+        row[4].text = row[4].texts.join(" ").trim();  // address
 
+        rows.push(row);
+    }
+
+    // Group the rows by Y co-ordinate (the same row typically appears multiple times because the
+    // image is examined vertically in overlapping steps).
+
+    let groups = [];
+    for (let row of rows) {
+        let group = groups.find(group => Math.abs(group.y - row[0].y) < LineAlignment * scaleFactor);
+        if (group === undefined) {
+            group = { y: row[0].y, rows: [] };
+            groups.push(group);
+        }
+        group.rows.push(row);
+    }
+
+    // Within each column (within a group) choose the cell with the highest confidence.
+
+    rows = [];
+    for (let group of groups)
+        rows.push(mergeRows(group.rows));
+
+    // Group together rows with the same application number.
+
+    groups = [];
+    for (let row of rows) {
+        let group = groups.find(group => group.applicationNumber === row[1].text);
+        if (group === undefined) {
+            group = { applicationNumber: row[1].text, rows: [] };
+            groups.push(group);
+        }
+        group.rows.push(row);
+    }
+
+    // Within each column (within a group) choose the cell with the highest confidence.
+
+    rows = [];
+    for (let group of groups)
+        rows.push(mergeRows(group.rows));
+
+    // Convert all of the rows to development applications.
+
+    let developmentApplications = [];
+    for (let row of rows) {
         // Re-format the address (making minor corrections where possible).
-
-        let formattedAddress = formatAddress(address.text);
-        if (formattedAddress.text !== address.text)
-            console.log(`    Corrected "${address.text}" to "${formattedAddress.text}".`);
+        
+        let formattedAddress = formatAddress(row[4].text);
+        if (formattedAddress.text !== row[4].text)
+            console.log(`    Corrected "${row[4].text}" to "${formattedAddress.text}".`);
 
         // Parse the received date so that it can be reformatted.
 
-        let parsedReceivedDate = moment(receivedDate.text, "D/MM/YYYY", true);
-        if (!parsedReceivedDate.isValid())
-            parsedReceivedDate = moment(receivedDate.text, "YYYY-MM-DDTHH:mm:ss", true);
+        let receivedDate = moment(row[0].text, "D/MM/YYYY", true);
+        if (!receivedDate.isValid())
+            receivedDate = moment(row[0].text, "YYYY-MM-DDTHH:mm:ss", true);
 
-        // Derive a confidence percentage for most columns.  Note that the address is the most
-        // important column.  The other information matters a lot less (the main concern is to
-        // identify an address for which a development application has been lodged).
+// if (formattedAddress.hasStreet && formattedAddress.hasRecognizedSuburb)
+//     console.log(`${receivedDate.text}[${Math.round(receivedDate.confidence)}% ${receivedDate.y}] ${applicationNumber.text}[${Math.round(applicationNumber.confidence)}% ${applicationNumber.y}] ${reason.text}[${Math.round(reason.confidence)}% ${reason.y}] ${applicant.text}[${Math.round(applicant.confidence)}% ${applicant.y}] ${formattedAddress.text}[${Math.round(address.confidence)}% ${address.y}]`);
 
-if (formattedAddress.hasStreet && formattedAddress.hasRecognizedSuburb)
-    console.log(`${receivedDate.text}[${Math.round(receivedDate.confidence)}% ${receivedDate.y}] ${applicationNumber.text}[${Math.round(applicationNumber.confidence)}% ${applicationNumber.y}] ${reason.text}[${Math.round(reason.confidence)}% ${reason.y}] ${applicant.text}[${Math.round(applicant.confidence)}% ${applicant.y}] ${formattedAddress.text}[${Math.round(address.confidence)}% ${address.y}]`);
+        // Ensure that the formatted address has a street name (possibly not recognised) and have
+        // a recognised suburb name.  Ensure that the development application number is not blank
+        // and contains at least one slash.  Ensure that the address text has reasonably high
+        // confidence (at least 75%).  And that a Y co-ordinate has been determined.
 
-        let developmentApplication = {
-            applicationNumber: applicationNumber.text,
-            address: formattedAddress.text,
-            reason: reason.text,
-            informationUrl: pdfUrl,
-            commentUrl: CommentUrl,
-            scrapeDate: moment().format("YYYY-MM-DD"),
-            receivedDate: parsedReceivedDate.isValid() ? parsedReceivedDate.format("YYYY-MM-DD") : "",
-            y: receivedDate.y,
-            hasStreet: formattedAddress.hasStreet,
-            hasRecognizedStreet: formattedAddress.hasRecognizedStreet,
-            hasRecognizedSuburb: formattedAddress.hasRecognizedSuburb,
-            receivedDateConfidence: receivedDate.confidence,
-            applicationNumberConfidence: applicationNumber.confidence,
-            reasonConfidence: reason.confidence,
-            addressConfidence: address.confidence
+        if (formattedAddress.hasStreet && formattedAddress.hasRecognizedSuburb && row[1].text.indexOf("/") >= 0 && row[4].confidence >= 75 && row[0].y !== null) {
+            developmentApplications.push({
+                applicationNumber: row[1].text,
+                address: formattedAddress.text,
+                reason: row[2].text,
+                informationUrl: pdfUrl,
+                commentUrl: CommentUrl,
+                scrapeDate: moment().format("YYYY-MM-DD"),
+                receivedDate: receivedDate.isValid() ? receivedDate.format("YYYY-MM-DD") : ""
+            });
         }
-        if (isValidApplication(developmentApplication))
-            developmentApplications.push(developmentApplication);
     }
+
+    return developmentApplications;
 
     // Where the same development application appears multiple times, choose the development
     // application with the highest confidence value.  Development applications often appear
     // multiple times because the image is examined step by step in overlapping "sections".
-
-    return chooseDevelopmentApplications(developmentApplications);
+    //
+    // return chooseDevelopmentApplications(developmentApplications, scaleFactor);
 }
 
 // Parses an image (from a PDF file).
