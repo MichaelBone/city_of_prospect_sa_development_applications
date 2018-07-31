@@ -347,8 +347,8 @@ console.log(columns);
 
         let [ receivedDate, applicationNumber, reason, applicant, address ] = lineColumns;
 
-        receivedDate.text = receivedDate.texts.join().trim();
-        applicationNumber.text = applicationNumber.texts.join().trim();
+        receivedDate.text = receivedDate.texts.join("").trim();
+        applicationNumber.text = applicationNumber.texts.join("").trim();
         applicant.text = applicant.texts.join(" ").trim();
         reason.text = reason.texts.join(" ").trim();
         address.text = address.texts.join(" ").trim();
