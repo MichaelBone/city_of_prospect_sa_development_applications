@@ -332,11 +332,13 @@ console.log("----------");
         row[3].text = row[3].texts.join(" ").trim();  // reason
         row[4].text = row[4].texts.join(" ").trim();  // address
 
-        // Ignore any rows where there is any cell with a confidence under 60 (this indicates that
-        // some text was extremely unreliable and was maybe horizontally cut in half).
+        // Ignore any rows where there is any cell with a confidence under 60% (this indicates that
+        // some text was extremely unreliable and was maybe horizontally cut in half).  Ignore any
+        // rows where there is not at least one slash in the received date or application number.
 
-        if (row.find(cell => cell.confidence < 60) === undefined)  // all cells above 60% confidence
-            rows.push(row);
+        if (row.find(cell => cell.confidence < 60) === undefined)  // ensure that all cells are 60% or above in confidence
+            if (row[0].text.indexOf("/") >= 0 || row[1].text.indexOf("/") >= 0)  // ensure that the characters are not just random in the received date and application number (due to being cut in half horizontally)
+                rows.push(row);
     }
 
 for (let row of rows)
@@ -608,10 +610,10 @@ async function main() {
 
 console.log(`Selecting ${pdfUrls.length} document(s).`);
 twoPdfUrls = pdfUrls;
-twoPdfUrls = [ "http://www.prospect.sa.gov.au/webdata/resources/files/New%20DAs%206%20November%202017%20to%2019%20November%202017.pdf" ];
+twoPdfUrls = [ "http://www.prospect.sa.gov.au/webdata/resources/files/New%20DAs%2011%20September%202017%20to%2024%20September%202017.pdf" ];
 
 // If odd day then scale factor 5.0; if even day then scale factor 6.0
-let scaleFactor = 5.0;
+let scaleFactor = 6.0;
 console.log(`Scale factor ${scaleFactor}.`);
 
     console.log("Selected the following documents to parse:");
