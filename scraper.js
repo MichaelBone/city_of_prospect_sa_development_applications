@@ -136,8 +136,8 @@ function formatAddress(address) {
     // Extract the suburb name (with the state abbreviation "SA" and postcode "5081", "5082" or
     // "5083") while allowing several spaces.  For example, "MEDI NDIE GARDE NS SA 5081" and
     // "FIT ZROY SA 5082".  This attempts to correct the suburb name (but only allows a small
-    // amount of change because other a valid street or suburb name such as "Churcher" could be
-    // accidentally converted to another equally valid street or suburub name such as "Church").
+    // amount of change because otherwise a valid street or suburb name such as "Churcher" could
+    // be accidentally converted to another equally valid street or suburub name such as "Church").
 
     let suburbName = null;
     let suburbNameMatch = null;
@@ -187,7 +187,7 @@ function formatAddress(address) {
     return formattedAddress;
 }
 
-// Determine the starting X co-ordering of each column.
+// Determine the starting X co-ordinate of each column.
 
 function findColumns(lines, scaleFactor) {
     // Start with a large column gap.  Continue to reduce this until exactly five columns are
