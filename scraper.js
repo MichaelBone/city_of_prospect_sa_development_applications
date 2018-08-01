@@ -89,7 +89,8 @@ function formatReason(reason) {
 
     reason = reason.replace(/ﬁ/g, "fi");
 
-    // Split the text whenever a sequence of letters is encountered.
+    // Split the text whenever a sequence of letters is encountered.  And then correct any common
+    // misspellings of words (for example, correct "Existinq" to "Existing").
 
     let formattedReason = "";
     let isPreviousLetter = null;
@@ -613,7 +614,7 @@ twoPdfUrls = pdfUrls;
 twoPdfUrls = [ "http://www.prospect.sa.gov.au/webdata/resources/files/New%20DAs%2011%20September%202017%20to%2024%20September%202017.pdf" ];
 
 // If odd day then scale factor 5.0; if even day then scale factor 6.0
-let scaleFactor = 6.0;
+let scaleFactor = 5.0;
 console.log(`Scale factor ${scaleFactor}.`);
 
     console.log("Selected the following documents to parse:");
