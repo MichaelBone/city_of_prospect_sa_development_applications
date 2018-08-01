@@ -1,4 +1,4 @@
-// Parses the development application at the South Australian City of Prospect web site and
+// Parses the development applications at the South Australian City of Prospect web site and
 // places them in a database.
 //
 // Michael Bone
@@ -33,6 +33,10 @@ const LineAlignment = 5;  // text within this number of pixels vertically is con
 
 let AllStreetNames = null;
 let AllSuburbNames = null;
+
+// Spelling corrections for the reason text.
+
+let SpellingCorrections = null;
 
 // Sets up an sqlite database.
 
@@ -76,6 +80,35 @@ async function insertRow(database, developmentApplication) {
             }
         });
     });
+}
+
+// Corrects common spelling errors in the reason text.
+
+function formatReason(reason) {
+    // Replace a common misspelling.
+
+    reason = reason.replace(/ﬁ/g, "fi");
+
+    // Split the text whenever a sequence of letters is encountered.
+
+    let formattedReason = "";
+    let isPreviousLetter = null;
+    let previousIndex = null;
+
+    for (let index = 0; index <= reason.length; index++) {
+        let c = (index === reason.length) ? 0 : reason.charCodeAt(index);
+        let isLetter = (c >= 65 && c <= 90) || (c >= 97 && c <= 122);  // A-Z or a-z
+        if (isLetter !== isPreviousLetter || c === 0) {
+            if (previousIndex !== null) {
+                let spellingCorrection = SpellingCorrections[reason.substring(previousIndex, index)];
+                formattedReason += (spellingCorrection === undefined) ? reason.substring(previousIndex, index) : spellingCorrection;
+            }
+            previousIndex = index;
+            isPreviousLetter = isLetter;
+        }
+    }
+
+    return formattedReason;
 }
 
 // Formats addresses, correcting any minor spelling errors.  An address is expected to be in the
@@ -202,15 +235,34 @@ function findColumns(lines, scaleFactor) {
 }
 
 // Merge an array of rows into a single row by choosing the cells in each column that have the
-// highest confidence.
+// highest confidence.  Although for the received date and application number columns prefer
+// those with two slashes over those with other numbers of slashes (even if the application
+// number has lower confidence).
 
 function mergeRows(rows) {
     let mergedRow = rows[0];
-    for (let rowIndex = 1; rowIndex < rows.length; rowIndex++) {
-        for (let columnIndex = 0; columnIndex < mergedRow.length; columnIndex++) {
-            if (rows[rowIndex][columnIndex].confidence > mergedRow[columnIndex].confidence) {
-                mergedRow[columnIndex].text = rows[rowIndex][columnIndex].text;
-                mergedRow[columnIndex].confidence = rows[rowIndex][columnIndex].confidence;
+    for (let columnIndex = 0; columnIndex < mergedRow.length; columnIndex++) {
+        if (columnIndex == 0 || columnIndex == 1) {  // received date or application number
+            // The received date and application number are better if they contain two slashes.
+            // For example, "29/01/2017" and "060/331/2018".  The closer to two slashes the better
+            // (hence the use of the word "distance" in variable names below).
+
+            let mergedCellSlashDistance = Math.abs(2 - (mergedRow[columnIndex].text.split("/").length - 1));
+            for (let rowIndex = 1; rowIndex < rows.length; rowIndex++) {
+                let cellSlashDistance = Math.abs(2 - (rows[rowIndex][columnIndex].text.split("/").length - 1));
+                if (cellSlashDistance <= mergedCellSlashDistance && rows[rowIndex][columnIndex].confidence > mergedRow[columnIndex].confidence) {
+                    mergedRow[columnIndex].text = rows[rowIndex][columnIndex].text;
+                    mergedRow[columnIndex].confidence = rows[rowIndex][columnIndex].confidence;
+                }
+            }
+        } else {
+            // For other columns such as reason and address simply look at the confidence values.
+
+            for (let rowIndex = 1; rowIndex < rows.length; rowIndex++) {
+                if (rows[rowIndex][columnIndex].confidence > mergedRow[columnIndex].confidence) {
+                    mergedRow[columnIndex].text = rows[rowIndex][columnIndex].text;
+                    mergedRow[columnIndex].confidence = rows[rowIndex][columnIndex].confidence;
+                }
             }
         }
     }
@@ -231,6 +283,10 @@ function parseLines(pdfUrl, lines, scaleFactor) {
         console.log("No application numbers were parsed from the current image in the document because could not find five columns.");
         return [];
     }
+
+console.log("----------");
+console.log(JSON.stringify(lines));
+console.log("----------");
 
     // Assume that there are five columns: received date, application number, reason, applicant
     // and address.
@@ -276,11 +332,18 @@ function parseLines(pdfUrl, lines, scaleFactor) {
         row[3].text = row[3].texts.join(" ").trim();  // reason
         row[4].text = row[4].texts.join(" ").trim();  // address
 
-        rows.push(row);
+        // Ignore any rows where there is any cell with a confidence under 60 (this indicates that
+        // some text was extremely unreliable and was maybe horizontally cut in half).
+
+        if (row.find(cell => cell.confidence < 60) === undefined)  // all cells above 60% confidence
+            rows.push(row);
     }
 
+for (let row of rows)
+    console.log(`${row[0].y}: ${row[0].text}[${Math.round(row[0].confidence)}%] ${row[1].text}[${Math.round(row[1].confidence)}%] ${row[2].text}[${Math.round(row[2].confidence)}%] ${row[3].text}[${Math.round(row[3].confidence)}%] ${row[4].text}[${Math.round(row[4].confidence)}%]`);
+
     // Group the rows by Y co-ordinate (the same row typically appears multiple times because the
-    // image is examined vertically in overlapping steps).
+    // image was examined vertically in overlapping steps).
 
     let groups = [];
     for (let row of rows) {
@@ -316,6 +379,11 @@ function parseLines(pdfUrl, lines, scaleFactor) {
     for (let group of groups)
         rows.push(mergeRows(group.rows));
 
+console.log("----------Updated rows:");
+for (let row of rows)
+    console.log(`${row[0].y}: ${row[0].text}[${Math.round(row[0].confidence)}%] ${row[1].text}[${Math.round(row[1].confidence)}%] ${row[2].text}[${Math.round(row[2].confidence)}%] ${row[3].text}[${Math.round(row[3].confidence)}%] ${row[4].text}[${Math.round(row[4].confidence)}%]`);
+console.log("----------");
+
     // Convert all of the rows to development applications.
 
     let developmentApplications = [];
@@ -332,14 +400,15 @@ function parseLines(pdfUrl, lines, scaleFactor) {
 
         // Ensure that the formatted address has a street name (possibly not recognised) and has
         // a recognised suburb name.  Ensure that the development application number is not blank
-        // and contains at least one slash.  Ensure that the address text has reasonably high
-        // confidence (at least 75%).  And ensure that a Y co-ordinate has been determined.
+        // and has a reasonably high confidence (at least 70%).  Ensure that the address text has
+        // reasonably high confidence (at least 75%).  And ensure that a Y co-ordinate has been
+        // determined.
 
-        if (formattedAddress.hasStreet && formattedAddress.hasRecognizedSuburb && row[1].text.indexOf("/") >= 0 && row[4].confidence >= 75 && row[0].y !== null) {
+        if (formattedAddress.hasStreet && formattedAddress.hasRecognizedSuburb && row[1].text !== "" && row[1].confidence >= 70 && row[4].confidence >= 75 && row[0].y !== null) {
             developmentApplications.push({
                 applicationNumber: row[1].text,
                 address: formattedAddress.text,
-                reason: row[2].text,
+                reason: formatReason(row[2].text),
                 informationUrl: pdfUrl,
                 commentUrl: CommentUrl,
                 scrapeDate: moment().format("YYYY-MM-DD"),
@@ -358,6 +427,9 @@ async function parseImage(pdfUrl, image, scaleFactor) {
     // a hard limit of 512 MB when running in morph.io).
 
     let lines = [];
+
+// let lines = ;
+// return parseLines(pdfUrl, lines, scaleFactor);
 
     for (let sectionY = 0; sectionY < image.height; sectionY += SectionStep) {
         let sectionHeight = Math.min(image.height - sectionY, SectionHeight);
@@ -492,6 +564,12 @@ async function main() {
     AllStreetNames = fs.readFileSync("streetnames.txt").toString().replace(/\r/g, "").trim().split("\n");
     AllSuburbNames = fs.readFileSync("suburbnames.txt").toString().replace(/\r/g, "").trim().split("\n");
 
+    // Read the file containing spelling corrections for the reason text.
+
+    SpellingCorrections = {};
+    for (let correction of fs.readFileSync("words.txt").toString().replace(/\r/g, "").trim().split("\n"))
+        SpellingCorrections[correction.split(",")[0]] = correction.split(",")[1];
+        
     // Retrieve the page containing the links to the development application PDFs.
 
     console.log(`Retrieving page: ${DevelopmentApplicationsUrl}`);
@@ -530,10 +608,11 @@ async function main() {
 
 console.log(`Selecting ${pdfUrls.length} document(s).`);
 twoPdfUrls = pdfUrls;
-twoPdfUrls = [ "http://www.prospect.sa.gov.au/webdata/resources/files/New%20DAs%2018%20June%202018%20to%201%20July%202018.pdf" ];
+twoPdfUrls = [ "http://www.prospect.sa.gov.au/webdata/resources/files/New%20DAs%206%20November%202017%20to%2019%20November%202017.pdf" ];
 
 // If odd day then scale factor 5.0; if even day then scale factor 6.0
 let scaleFactor = 5.0;
+console.log(`Scale factor ${scaleFactor}.`);
 
     console.log("Selected the following documents to parse:");
     for (let pdfUrl of twoPdfUrls)
