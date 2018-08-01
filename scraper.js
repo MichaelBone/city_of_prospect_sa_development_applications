@@ -281,13 +281,9 @@ function parseLines(pdfUrl, lines, scaleFactor) {
 
     let columns = findColumns(lines, scaleFactor);
     if (columns === null) {
-        console.log("No application numbers were parsed from the current image in the document because could not find five columns.");
+        console.log("No application numbers were parsed from the current image in the document because five columns were not found.");
         return [];
     }
-
-console.log("----------");
-console.log(JSON.stringify(lines));
-console.log("----------");
 
     // Assume that there are five columns: received date, application number, reason, applicant
     // and address.
@@ -342,9 +338,6 @@ console.log("----------");
                 rows.push(row);
     }
 
-for (let row of rows)
-    console.log(`${row[0].y}: ${row[0].text}[${Math.round(row[0].confidence)}%] ${row[1].text}[${Math.round(row[1].confidence)}%] ${row[2].text}[${Math.round(row[2].confidence)}%] ${row[3].text}[${Math.round(row[3].confidence)}%] ${row[4].text}[${Math.round(row[4].confidence)}%]`);
-
     // Group the rows by Y co-ordinate (the same row typically appears multiple times because the
     // image was examined vertically in overlapping steps).
 
@@ -381,11 +374,6 @@ for (let row of rows)
     rows = [];
     for (let group of groups)
         rows.push(mergeRows(group.rows));
-
-console.log("----------Updated rows:");
-for (let row of rows)
-    console.log(`${row[0].y}: ${row[0].text}[${Math.round(row[0].confidence)}%] ${row[1].text}[${Math.round(row[1].confidence)}%] ${row[2].text}[${Math.round(row[2].confidence)}%] ${row[3].text}[${Math.round(row[3].confidence)}%] ${row[4].text}[${Math.round(row[4].confidence)}%]`);
-console.log("----------");
 
     // Convert all of the rows to development applications.
 
@@ -430,9 +418,6 @@ async function parseImage(pdfUrl, image, scaleFactor) {
     // a hard limit of 512 MB when running in morph.io).
 
     let lines = [];
-
-// let lines = ;
-// return parseLines(pdfUrl, lines, scaleFactor);
 
     for (let sectionY = 0; sectionY < image.height; sectionY += SectionStep) {
         let sectionHeight = Math.min(image.height - sectionY, SectionHeight);
@@ -611,9 +596,9 @@ async function main() {
 
 console.log(`Selecting ${pdfUrls.length} document(s).`);
 twoPdfUrls = pdfUrls;
-twoPdfUrls = [ "http://www.prospect.sa.gov.au/webdata/resources/files/New%20DAs%2011%20September%202017%20to%2024%20September%202017.pdf" ];
 
-// If odd day then scale factor 5.0; if even day then scale factor 6.0
+// If an odd day then scale factor 5.0 otherwise if an even day then scale factor 6.0.
+
 let scaleFactor = 5.0;
 console.log(`Scale factor ${scaleFactor}.`);
 
