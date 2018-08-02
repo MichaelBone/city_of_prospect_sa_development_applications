@@ -22,6 +22,7 @@ const CommentUrl = "mailto:admin@prospect.sa.gov.au";
 
 // Heights and widths used when recognising text in an image.
 
+const ScaleFactor = 5.0;  // the scale factor for images
 const LineHeight = 15;  // the tallest line of text is approximately this many pixels high
 const SectionHeight = LineHeight * 2;  // the text will be examined in sections of this height (in pixels)
 const SectionStep = 5;  // the next section of text examined will be offset vertically this number of pixels
@@ -164,7 +165,7 @@ function formatAddress(address) {
         if (!/^[0-9]+$/.test(token) && !/^[0-9][A-Za-z]$/.test(token) && token.length >= 2) {  // ignore street numbers, otherwise "6 King Street" is changed to "King Street"; ignore a single character such as "S" (because it is probably, really the digit "5")
             streetName = tokens.join(" ");
             streetNameMatch = didyoumean(streetName, AllStreetNames, { caseSensitive: false, returnType: "first-closest-match", thresholdType: "edit-distance", threshold: 3, trimSpace: true });
-            if (streetNameMatch !== null)
+            if (streetNameMatch !== null && !(streetName[2] === " " && streetName.substring(3).toLowerCase() === streetNameMatch.toLowerCase()))  // avoid converting "SB Iona Street" to "Iona Street" (the "S" is probably really a "5")
                 break;
         }
         tokens.shift();
@@ -594,14 +595,6 @@ async function main() {
             twoPdfUrls = [ pdfUrls[getRandom(1, pdfUrls.length)], pdfUrls[0] ];
     }
 
-console.log(`Selecting ${pdfUrls.length} document(s).`);
-twoPdfUrls = pdfUrls;
-
-// If an odd day then scale factor 5.0 otherwise if an even day then scale factor 6.0.
-
-let scaleFactor = 5.0;
-console.log(`Scale factor ${scaleFactor}.`);
-
     console.log("Selected the following documents to parse:");
     for (let pdfUrl of twoPdfUrls)
         console.log(`    ${pdfUrl}`);
@@ -613,7 +606,7 @@ console.log(`Scale factor ${scaleFactor}.`);
 
         console.log(`Retrieving document: ${pdfUrl}`);
         let pdf = await pdfjs.getDocument({ url: pdfUrl, disableFontFace: true });
-        await parsePdf(database, pdfUrl, pdf, scaleFactor);  // this inserts development applications into the database
+        await parsePdf(database, pdfUrl, pdf, ScaleFactor);  // this inserts development applications into the database
     }
 }
 

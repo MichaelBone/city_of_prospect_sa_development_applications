@@ -14,9 +14,10 @@ Dwellinq,Dwelling
 Horne,Home
 Includinq,Including
 Leucoxvlon,Leucoxylon
-Lnstall,Install
+lnstall,Install
 Outbuildinos,Outbuildings
 Reoulated,Regulated
+Retainino,Retaining
 Safetv,Safety
 Storev,Storey
 Svstem,System
@@ -24,4 +25,4 @@ Swimmina,Swimming
 Swimmino,Swimming
 Tenancv,Tenancy
 Verandan,Verandah
-Veranoan,Verandah
+veranoan,Verandah
