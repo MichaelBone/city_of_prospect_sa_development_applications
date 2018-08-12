@@ -22,7 +22,7 @@ const CommentUrl = "mailto:admin@prospect.sa.gov.au";
 
 // Heights and widths used when recognising text in an image.
 
-const ScaleFactor = 5.0;  // the scale factor for images
+const ScaleFactor = 5.0;  // the scale factor for sections of images
 const LineHeight = 15;  // the tallest line of text is approximately this many pixels high
 const SectionHeight = LineHeight * 2;  // the text will be examined in sections of this height (in pixels)
 const SectionStep = 5;  // the next section of text examined will be offset vertically this number of pixels
