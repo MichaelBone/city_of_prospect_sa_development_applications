@@ -138,7 +138,7 @@ function formatAddress(address) {
     // "5083") while allowing several spaces.  For example, "MEDI NDIE GARDE NS SA 5081" and
     // "FIT ZROY SA 5082".  This attempts to correct the suburb name (but only allows a small
     // amount of change because otherwise a valid street or suburb name such as "Churcher" could
-    // be accidentally converted to another equally valid street or suburub name such as "Church").
+    // be accidentally converted to another equally valid street or suburb name such as "Church").
 
     let suburbName = null;
     let suburbNameMatch = null;
