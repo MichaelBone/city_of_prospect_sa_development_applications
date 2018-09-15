@@ -35,7 +35,7 @@ const LineAlignment = 5;  // text within this number of pixels vertically is con
 let AllStreetNames = null;
 let AllSuburbNames = null;
 
-// Spelling corrections for the reason text.
+// Spelling corrections for the description text.
 
 let SpellingCorrections = null;
 
@@ -59,7 +59,7 @@ async function insertRow(database, developmentApplication) {
         sqlStatement.run([
             developmentApplication.applicationNumber,
             developmentApplication.address,
-            developmentApplication.reason,
+            developmentApplication.description,
             developmentApplication.informationUrl,
             developmentApplication.commentUrl,
             developmentApplication.scrapeDate,
@@ -72,9 +72,9 @@ async function insertRow(database, developmentApplication) {
                 reject(error);
             } else {
                 if (this.changes > 0)
-                    console.log(`    Application \"${developmentApplication.applicationNumber}\" with address \"${developmentApplication.address}\" and reason \"${developmentApplication.reason}\" was inserted into the database.`);
+                    console.log(`    Application \"${developmentApplication.applicationNumber}\" with address \"${developmentApplication.address}\" and description \"${developmentApplication.description}\" was inserted into the database.`);
                 else
-                    console.log(`    Application \"${developmentApplication.applicationNumber}\" with address \"${developmentApplication.address}\" and reason \"${developmentApplication.reason}\" was already present in the database.`);
+                    console.log(`    Application \"${developmentApplication.applicationNumber}\" with address \"${developmentApplication.address}\" and description \"${developmentApplication.description}\" was already present in the database.`);
 
                 sqlStatement.finalize();  // releases any locks
                 resolve(row);
@@ -83,34 +83,34 @@ async function insertRow(database, developmentApplication) {
     });
 }
 
-// Corrects common spelling errors in the reason text.
+// Corrects common spelling errors in the description text.
 
-function formatReason(reason) {
+function formatDescription(description) {
     // Replace a common misspelling.
 
-    reason = reason.replace(/ﬁ/g, "fi");
+    description = description.replace(/ﬁ/g, "fi");
 
     // Split the text whenever a sequence of letters is encountered.  And then correct any common
     // misspellings of words (for example, correct "Existinq" to "Existing").
 
-    let formattedReason = "";
+    let formattedDescription = "";
     let isPreviousLetter = null;
     let previousIndex = null;
 
-    for (let index = 0; index <= reason.length; index++) {
-        let c = (index === reason.length) ? 0 : reason.charCodeAt(index);
+    for (let index = 0; index <= description.length; index++) {
+        let c = (index === description.length) ? 0 : description.charCodeAt(index);
         let isLetter = (c >= 65 && c <= 90) || (c >= 97 && c <= 122);  // A-Z or a-z
         if (isLetter !== isPreviousLetter || c === 0) {
             if (previousIndex !== null) {
-                let spellingCorrection = SpellingCorrections[reason.substring(previousIndex, index)];
-                formattedReason += (spellingCorrection === undefined) ? reason.substring(previousIndex, index) : spellingCorrection;
+                let spellingCorrection = SpellingCorrections[description.substring(previousIndex, index)];
+                formattedDescription += (spellingCorrection === undefined) ? description.substring(previousIndex, index) : spellingCorrection;
             }
             previousIndex = index;
             isPreviousLetter = isLetter;
         }
     }
 
-    return formattedReason;
+    return formattedDescription;
 }
 
 // Formats addresses, correcting any minor spelling errors.  An address is expected to be in the
@@ -195,9 +195,9 @@ function findColumns(lines, scaleFactor) {
     // found.  This then caters for some documents where the column gap is very narrow.
 
     for (let columnGap = ColumnGap; columnGap >= 1; columnGap--) {
-        // Determine where the received date, application number, reason, applicant and address
-        // are located on each line.  This is partly determined by looking for the sizable gaps
-        // between columns.
+        // Determine where the received date, application number, description, applicant and
+        // address are located on each line.  This is partly determined by looking for the sizable
+        // gaps between columns.
 
         let columns = [];
         for (let line of lines) {
@@ -258,7 +258,8 @@ function mergeRows(rows) {
                 }
             }
         } else {
-            // For other columns such as reason and address simply look at the confidence values.
+            // For other columns such as description and address simply look at the confidence
+            // values.
 
             for (let rowIndex = 1; rowIndex < rows.length; rowIndex++) {
                 if (rows[rowIndex][columnIndex].confidence > mergedRow[columnIndex].confidence) {
@@ -273,11 +274,11 @@ function mergeRows(rows) {
 
 // Parses the lines of words.  Each word in a line consists of a bounding box, the text that
 // exists in that bounding box and the confidence information determined by tesseract.js.  The
-// logic here also performs partitioning of the text into columns (for example, the reason and
-// address columns).
+// logic here also performs partitioning of the text into columns (for example, the description
+// and address columns).
 
 function parseLines(pdfUrl, lines, scaleFactor) {
-    // Determine where the received date, application number, reason, applicant and address
+    // Determine where the received date, application number, description, applicant and address
     // start on each line.
 
     let columns = findColumns(lines, scaleFactor);
@@ -286,8 +287,8 @@ function parseLines(pdfUrl, lines, scaleFactor) {
         return [];
     }
 
-    // Assume that there are five columns: received date, application number, reason, applicant
-    // and address.
+    // Assume that there are five columns: received date, application number, description,
+    // applicant and address.
 
     let rows = [];
     for (let line of lines) {
@@ -300,8 +301,8 @@ function parseLines(pdfUrl, lines, scaleFactor) {
         let cell = null;
         for (let word of line) {
             // Determine if this word lines up with the start of a column (keeping in mind that
-            // there are five columns: received date, application number, reason, applicant and
-            // address).
+            // there are five columns: received date, application number, description, applicant
+            // and address).
 
             let columnIndex = columns.findIndex(column => Math.abs(column.x - word.bounds.x) < ColumnAlignment * scaleFactor);
             if (columnIndex >= 0) {
@@ -327,7 +328,7 @@ function parseLines(pdfUrl, lines, scaleFactor) {
         row[0].text = row[0].texts.join("").trim();  // received date
         row[1].text = row[1].texts.join("").trim();  // application number
         row[2].text = row[2].texts.join(" ").trim();  // applicant (not currently used)
-        row[3].text = row[3].texts.join(" ").trim();  // reason
+        row[3].text = row[3].texts.join(" ").trim();  // description
         row[4].text = row[4].texts.join(" ").trim();  // address
 
         // Ignore any rows where there is any cell with a confidence under 60% (this indicates that
@@ -400,7 +401,7 @@ function parseLines(pdfUrl, lines, scaleFactor) {
             developmentApplications.push({
                 applicationNumber: row[1].text,
                 address: formattedAddress.text,
-                reason: formatReason(row[2].text),
+                description: formatDescription(row[2].text),
                 informationUrl: pdfUrl,
                 commentUrl: CommentUrl,
                 scrapeDate: moment().format("YYYY-MM-DD"),
@@ -553,7 +554,7 @@ async function main() {
     AllStreetNames = fs.readFileSync("streetnames.txt").toString().replace(/\r/g, "").trim().split("\n");
     AllSuburbNames = fs.readFileSync("suburbnames.txt").toString().replace(/\r/g, "").trim().split("\n");
 
-    // Read the file containing spelling corrections for the reason text.
+    // Read the file containing spelling corrections for the description text.
 
     SpellingCorrections = {};
     for (let correction of fs.readFileSync("words.txt").toString().replace(/\r/g, "").trim().split("\n"))
