@@ -6,6 +6,7 @@ Alfred Street
 Alice Street
 Allan Street
 Alpha Road
+Angwin Avenue
 Argyle Street
 Arthur Street
 Asquith Street
@@ -17,6 +18,7 @@ Balfour Street
 Ballville Street
 Barker Road
 Barton Road
+Beaconsfield Lane
 Beatrice Street
 Beaven Avenue
 Belford Avenue
@@ -31,6 +33,7 @@ Bourke Street
 Boyle Street
 Bradford Street
 Braund Road
+Briar Lane
 Bridges Street
 Brooke Street
 Bruce Street
@@ -42,6 +45,7 @@ Burns Avenue
 Burrage Place
 Burwood Avenue
 California Street
+Camroc Avenue
 Cane Street
 Carter Street
 Cassie Street
@@ -99,6 +103,7 @@ Eva Street
 Farrant Street
 Ferguson Avenue
 Fergusson Crescent
+Furgusson Crescent
 First Avenue
 Fitzroy Terrace
 Flora Terrace
@@ -109,6 +114,7 @@ Galway Avenue
 Gilbert Street
 Gladstone Road
 Gloucester Street
+Goode Lane
 Gordon Road
 Gowland Street
 Graham Place
@@ -127,6 +133,7 @@ Harvey Street
 Hatchard Lane
 Hawker Street
 Hawkers Road
+Henrietta Street
 Hepburn Street
 Highbury Street
 Hillsdale Street
@@ -138,6 +145,8 @@ Hudson Street
 Ian Street
 Iona Street
 Irish Harp Lane
+Irish Harp Lane East
+Irish Harp Lane West
 Jacaranda Avenue
 James Street
 Jean Street
@@ -153,6 +162,8 @@ Kingston Lane
 Kintore Avenue
 Koonga Avenue
 Labrina Avenue
+Laburnum Lane
+Larwood Lane
 Lae Avenue
 Lauder Avenue
 Laura Street
@@ -190,6 +201,7 @@ Minney Street
 Mitchell Close
 Mona Place
 Moora Avenue
+Moore Street
 Moresby Avenue
 Munro Avenue
 Muriel Street
@@ -225,6 +237,8 @@ Prospect Terrace
 Pulsford Road
 Pym Street
 Railway Park
+Railway Park East Lane
+Railway Park West Lane
 Redin Street
 Redmond Street
 Reed Court
@@ -246,6 +260,7 @@ Second Avenue
 Sheldrick Court
 Sherbourne Road
 Smith Street
+St Albyns Court
 St Andrews Street
 St Peters Place
 Staffa Street
@@ -262,8 +277,10 @@ Thomas Street
 Thorngate Street
 Toronto Street
 Torrens Road
+Totness Avenue
 Totness Street
 Tralee Avenue
+Trembath Street
 Union Street
 Vaughan Street
 Verco Street
@@ -276,6 +293,7 @@ Watson Avenue
 Wavell Street
 Welwyn Road
 West Terrace
+Wilke Lane
 Whinham Street
 Willcox Avenue
 William Street
