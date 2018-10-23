@@ -72,10 +72,9 @@ async function insertRow(database, developmentApplication) {
                 reject(error);
             } else {
                 if (this.changes > 0)
-                    console.log(`    Application \"${developmentApplication.applicationNumber}\" with address \"${developmentApplication.address}\" and description \"${developmentApplication.description}\" was inserted into the database.`);
+                    console.log(`    Application \"${developmentApplication.applicationNumber}\" with address \"${developmentApplication.address}\", description \"${developmentApplication.description}\" and received date \"${developmentApplication.receivedDate}\" was inserted into the database.`);
                 else
-                    console.log(`    Application \"${developmentApplication.applicationNumber}\" with address \"${developmentApplication.address}\" and description \"${developmentApplication.description}\" was already present in the database.`);
-
+                    console.log(`    Application \"${developmentApplication.applicationNumber}\" with address \"${developmentApplication.address}\", description \"${developmentApplication.description}\" and received date \"${developmentApplication.receivedDate}\" was already present in the database.`);
                 sqlStatement.finalize();  // releases any locks
                 resolve(row);
             }
@@ -413,7 +412,7 @@ function parseLines(pdfUrl, lines, scaleFactor) {
     return developmentApplications;
 }
 
-// Parses an image (from a PDF file).
+// Parses an image from a PDF file.
 
 async function parseImage(pdfUrl, image, scaleFactor) {
     // The image is examined in overlapping sections to reduce the memory usage (there is currently
@@ -506,20 +505,77 @@ async function parseImage(pdfUrl, image, scaleFactor) {
     return parseLines(pdfUrl, lines, scaleFactor);
 }
 
+// Parses the text from a PDF file.
+
+async function parseText(page, pdfUrl) {
+    let textContent = await page.getTextContent();
+    let viewport = await page.getViewport(1.0);
+
+    let elements = textContent.items.map(item => {
+        let transform = pdfjs.Util.transform(viewport.transform, item.transform);
+
+        // Work around the issue https://github.com/mozilla/pdf.js/issues/8276 (heights are
+        // exaggerated).  The problem seems to be that the height value is too large in some
+        // PDFs.  Provide an alternative, more accurate height value by using a calculation
+        // based on the transform matrix.
+
+        let workaroundHeight = Math.sqrt(transform[2] * transform[2] + transform[3] * transform[3]);
+        return { text: item.str, confidence: 100, choices: 1, bounds: { x: transform[4], y: transform[5], width: item.width, height: workaroundHeight } };
+    });
+
+    // Sort the elements by Y co-ordinate and then by X co-ordinate.
+
+    let elementComparer = (a, b) => (a.bounds.y > b.bounds.y) ? 1 : ((a.bounds.y < b.bounds.y) ? -1 : ((a.bounds.x > b.bounds.x) ? 1 : ((a.bounds.x < b.bounds.x) ? -1 : 0)));
+    elements.sort(elementComparer);
+
+    // Group the elements by line.
+
+    let averageElementHeight = elements.reduce((total, element) => total + element.bounds.height, 0) / Math.max(1, elements.length);
+    
+    let lines = [];
+    let line = [];
+    let y = Number.MIN_VALUE;
+    
+    for (let element of elements) {
+        if (element.bounds.y > y + averageElementHeight / 2) {
+            line = [element];
+            lines.push(line);
+            y = element.bounds.y;
+        }
+        else {
+            line.push(element);
+        }
+    }
+
+    // Analyse the lines of words to extract development application details.
+
+    return parseLines(pdfUrl, lines, 1);
+}
+
 // Parses a single PDF file.
 
 async function parsePdf(database, pdfUrl, pdf, scaleFactor) {
     let imageCount = 0;
     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
         console.log(`Examining page ${pageNumber} of ${pdf.numPages} in the PDF.`);
-
         let page = await pdf.getPage(pageNumber);
-        let operators = await page.getOperatorList();
+
+        // Find and parse any text in the PDF.
+
+        let developmentApplications = await parseText(page, pdfUrl);
+
+        // Insert the resulting development applications into the database.
+
+        for (let developmentApplication of developmentApplications)
+            await insertRow(database, developmentApplication);
 
         // Find and parse any images in the PDF.
 
+        let operators = await page.getOperatorList();
         for (let index = 0; index < operators.fnArray.length; index++) {
             if (operators.fnArray[index] === pdfjs.OPS.paintImageXObject) {
+                // Parse an image in the PDF.
+
                 let operator = operators.argsArray[index][0];
                 let image = page.objs.get(operator);
                 imageCount++;
