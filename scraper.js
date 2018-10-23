@@ -541,8 +541,7 @@ async function parseText(page, pdfUrl) {
             line = [element];
             lines.push(line);
             y = element.bounds.y;
-        }
-        else {
+        } else {
             line.push(element);
         }
     }
