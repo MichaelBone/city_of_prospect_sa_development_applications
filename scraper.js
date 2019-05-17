@@ -25,7 +25,7 @@ let pdfjs = require("pdfjs-dist");
 let jimp = require("jimp");
 let didyoumean = require("didyoumean2");
 
-const DevelopmentApplicationsUrl = "http://www.prospect.sa.gov.au/developmentregister";
+const DevelopmentApplicationsUrl = "http://www.prospect.sa.gov.au/development-register";
 const CommentUrl = "mailto:admin@prospect.sa.gov.au";
 
 // Heights and widths used when recognising text in an image.
@@ -640,7 +640,7 @@ async function main() {
     let $ = cheerio.load(body);
 
     let pdfUrls = [];
-    let linkElements = $("div.uContentList a[href$='.pdf']").get();
+    let linkElements = $("div.uContentList a").get();
 
     if (linkElements.length === 0) {
         console.log("No PDFs were found.");
@@ -651,9 +651,9 @@ async function main() {
 
     for (let linkElement of linkElements) {
         let pdfUrl = new urlparser.URL(linkElement.attribs.href, DevelopmentApplicationsUrl).href;
-        if (pdfUrls.some(url => url === pdfUrl))
-            continue;  // ignore duplicates
-        pdfUrls.push(pdfUrl);
+        if (pdfUrl.toLowerCase().includes(".pdf"))
+            if (!pdfUrls.some(url => url === pdfUrl))  // ignore duplicates
+                pdfUrls.push(pdfUrl);
     }
 
     // Parse the most recent PDF and one other randomly selected PDF (do not parse all PDFs
