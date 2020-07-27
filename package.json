@@ -10,7 +10,7 @@
     "fs": "0.0.1-security",
     "jimp": "^0.2.28",
     "moment": "^2.22.2",
-    "pdfjs-dist": "^2.0.489",
+    "pdfjs-dist": "2.0.489",
     "request": "^2.88.0",
     "request-promise-native": "^1.0.5",
     "sqlite3": "^4.0.1",
