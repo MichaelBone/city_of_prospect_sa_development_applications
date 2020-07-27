@@ -25,7 +25,7 @@ let pdfjs = require("pdfjs-dist");
 let jimp = require("jimp");
 let didyoumean = require("didyoumean2");
 
-const DevelopmentApplicationsUrl = "http://www.prospect.sa.gov.au/development-register";
+const DevelopmentApplicationsUrl = "https://www.prospect.sa.gov.au/development/new-developments/development-register";
 const CommentUrl = "mailto:admin@prospect.sa.gov.au";
 
 // Heights and widths used when recognising text in an image.
@@ -63,7 +63,7 @@ async function initializeDatabase() {
 
 async function insertRow(database, developmentApplication) {
     return new Promise((resolve, reject) => {
-        let sqlStatement = database.prepare("insert or ignore into [data] values (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        let sqlStatement = database.prepare("insert or replace into [data] values (?, ?, ?, ?, ?, ?, ?, ?, ?)");
         sqlStatement.run([
             developmentApplication.applicationNumber,
             developmentApplication.address,
@@ -79,10 +79,7 @@ async function insertRow(database, developmentApplication) {
                 console.error(error);
                 reject(error);
             } else {
-                if (this.changes > 0)
-                    console.log(`    Application \"${developmentApplication.applicationNumber}\" with address \"${developmentApplication.address}\", description \"${developmentApplication.description}\" and received date \"${developmentApplication.receivedDate}\" was inserted into the database.`);
-                else
-                    console.log(`    Application \"${developmentApplication.applicationNumber}\" with address \"${developmentApplication.address}\", description \"${developmentApplication.description}\" and received date \"${developmentApplication.receivedDate}\" was already present in the database.`);
+                console.log(`    Application \"${developmentApplication.applicationNumber}\" with address \"${developmentApplication.address}\", description \"${developmentApplication.description}\" and received date \"${developmentApplication.receivedDate}\" was saved to the database.`);
                 sqlStatement.finalize();  // releases any locks
                 resolve(row);
             }
@@ -643,7 +640,7 @@ async function main() {
     let $ = cheerio.load(body);
 
     let pdfUrls = [];
-    let linkElements = $("div.uContentList a").get();
+    let linkElements = $("h3.generic-list__title a").get();
 
     if (linkElements.length === 0) {
         console.log("No PDFs were found.");
